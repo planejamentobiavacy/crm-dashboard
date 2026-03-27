@@ -287,47 +287,120 @@ function saveSett(){
   loadData();
 }
 
-// ── FETCH via JSONP ─────────────────────────────────────
-// fetch() é bloqueado pelo Chrome quando aberto de file://.
-// JSONP via <script> tag funciona de qualquer origem — sem CORS.
-// NÃO usamos onerror (dispara falso no Chrome); usamos apenas timeout.
+// ── FETCH: CSV primeiro (lê fórmulas), fallback JSONP ────
+// CSV via gviz retorna valores calculados das fórmulas corretamente.
+// JSONP é fallback para quando CSV falhar (ex: file://).
 let _cbIdx = 0;
 
-function fetchSheet(name) {
+async function fetchSheet(name) {
+  // Tenta múltiplos endpoints CSV — lê valores calculados de fórmulas
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
+    `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}`,
+  ];
+
+  for (const csvUrl of urls) {
+    try {
+      const r = await fetch(csvUrl, { signal: AbortSignal.timeout(10000) });
+      if (r.ok) {
+        const txt = await r.text();
+        if (txt && txt.trim().length > 10 && !txt.trim().startsWith('<')) {
+          console.log(`✅ CSV [${csvUrl.includes('export')?'export':'gviz'}]: ${name} — ${txt.split('\n').length} linhas`);
+          const r2 = parseCSV(txt, name);
+          r2._via = 'csv';
+          return r2;
+        }
+      }
+    } catch(e) {
+      console.warn(`CSV falhou (${csvUrl.includes('export')?'export':'gviz'}) "${name}":`, e.message);
+    }
+  }
+
+  // Fallback JSONP — não lê campos com ";" mas carrega os demais
+  console.warn(`⚠️ JSONP "${name}" — DIAS VENDA/CONTATO podem não aparecer`);
   return new Promise((resolve) => {
     const cbName = `_gs${_cbIdx++}`;
-
-    const timer = setTimeout(() => {
-      cleanup();
-      console.warn(`Aba "${name}" — timeout (não existe ou lenta).`);
-      resolve([]);
-    }, 12000);
-
+    const timer = setTimeout(() => { cleanup(); resolve([]); }, 12000);
     function cleanup() {
       clearTimeout(timer);
       delete window[cbName];
       const el = document.getElementById('_s_' + cbName);
       if (el) el.remove();
     }
-
     window[cbName] = function(resp) {
       cleanup();
       try {
         const rows = parseGviz(resp, name);
+        rows._via = 'jsonp';
         resolve(rows);
-      } catch(e) {
-        console.warn(`Erro ao processar "${name}":`, e.message);
-        resolve([]);
       }
+      catch(_) { resolve([]); }
     };
-
-    const url = `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(name)}&headers=1`;
+    const url = `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(name)}`;
     const s = document.createElement('script');
     s.id = '_s_' + cbName;
     s.src = url;
-    // SEM onerror — dispara falsamente no Chrome para file://
     document.head.appendChild(s);
   });
+}
+
+// ── CSV PARSER ───────────────────────────────────────────
+function parseCSV(txt, vendor) {
+  if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1); // BOM
+  const lines = txt.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+
+  const headers = splitCSV(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
+  DATA['__cols__' + vendor] = headers;
+
+  const fi = (name) => {
+    const n = name.toLowerCase();
+    let i = headers.findIndex(h => h.toLowerCase() === n);
+    if (i < 0) i = headers.findIndex(h => h.toLowerCase().includes(n.slice(0,6)));
+    return i;
+  };
+
+  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+        iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
+        iMeta=fi(C.meta), iDv=fi(C.dv);
+
+  const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
+  const num  = (s) => parseFloat(s.replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const c = splitCSV(lines[i]);
+    const clientRaw = get(c, iCl);
+    const dateStr   = get(c, iDt);
+    if (!clientRaw && !dateStr) continue;
+    const motivoNV  = get(c, iMo);
+    const motivoMot = get(c, iMo2);
+    rows.push({
+      vendor,
+      client:    clientRaw.replace(/\.0+$/, ''),
+      dateRaw:   dateStr,
+      date:      pDate(dateStr),
+      value:     num(get(c, iVl)),
+      meta:      num(get(c, iMeta)) * 1000,
+      diasVenda: get(c, iDv),   // CSV retorna valor calculado da fórmula ✅
+      carteira:  get(c, iCa),
+      contato:   get(c, iCo),   // CSV retorna valor calculado da fórmula ✅
+      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+    });
+  }
+  return rows;
+}
+
+function splitCSV(line) {
+  const res = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (q && line[i+1]==='"') { cur+='"'; i++; } else q=!q; }
+    else if (ch === ',' && !q) { res.push(cur); cur=''; }
+    else cur += ch;
+  }
+  res.push(cur);
+  return res;
 }
 
 // Converte resposta gviz JSON → rows
@@ -358,17 +431,43 @@ function parseGviz(resp, vendor) {
     const v = cell.v != null ? String(cell.v).trim() : '';
     return f || v;
   };
+  // gStrFull: para campos com múltiplos valores (ex: "2;3;4;6") — lê todas as propriedades
+  const gStrFull = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    if (!cell) return '';
+    // Tenta todas as propriedades possíveis do gviz
+    for (const key of ['v', 'f', 'p']) {
+      const val = cell[key];
+      if (val != null && String(val).trim()) return String(val).trim();
+    }
+    return '';
+  };
   const gStrRaw = (row, i) => {
     if (i < 0) return '';
     const cell = (row.c || [])[i];
     return (cell && cell.v != null) ? String(cell.v).trim() : '';
   };
+  // lastVal: extrai último valor de campos com formato "X;Y;ZZ" (pega o mais recente)
+  const lastVal = (s) => {
+    if (!s || !s.trim()) return '';
+    const parts = s.split(';').map(p => p.trim()).filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : s;
+  };
+  // gNum: lê número preferindo cell.f formatado (preserva separadores de milhar BR)
   const gNum = (row, i) => {
     if (i < 0) return 0;
     const cell = (row.c || [])[i];
     if (!cell || cell.v == null) return 0;
+    // Sempre tenta cell.f primeiro — tem o número com formatação original da planilha
+    const fStr = (cell.f != null) ? String(cell.f).trim() : '';
+    if (fStr) {
+      // Remove R$, espaços; remove pontos de milhar; troca vírgula decimal por ponto
+      return parseFloat(fStr.replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+    }
+    // Sem cell.f: usa cell.v (número JS nativo do gviz)
     if (typeof cell.v === 'number') return cell.v;
-    return parseFloat(String(cell.f || cell.v).replace(/[R$\s.]/g,'').replace(',','.')) || 0;
+    return parseFloat(String(cell.v).replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
   };
   const gDate = (row, i) => {
     if (i < 0) return null;
@@ -394,10 +493,10 @@ function parseGviz(resp, vendor) {
       dateRaw:   dateStr,
       date:      gDate(row, iDt),
       value:     gNum(row, iVl),
-      meta:      gNum(row, iMeta),
-      diasVenda: gStrRaw(row, iDv),
+      meta:      gNum(row, iMeta) * 1000,  // META FAT. está em milhares na planilha
+      diasVenda: gStrFull(row, iDv),
       carteira:  gStr(row, iCa),
-      contato:   gStrRaw(row, iCo),
+      contato:   gStrFull(row, iCo),
       motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
     });
   }
@@ -441,32 +540,35 @@ async function loadData(){
     DATA[name] = await fetchSheet(name);
   }));
 
-  // Detecta vendedores que receberam a aba padrão como fallback do Google
-  // Fingerprint robusto: nº linhas + soma de valores + 5 primeiros clientes
+  // Detecta fallback do Google (só ocorre no JSONP — CSV usa URL com nome da aba)
+  // Aplica apenas em abas marcadas como carregadas via JSONP
   const fingerprint = (rows) => {
     const count = rows.length;
     const valSum = rows.reduce((a,r)=>a+(r.value||0),0).toFixed(0);
     const clients = rows.slice(0,5).map(r=>r.client).join('|');
     return `${count}::${valSum}::${clients}`;
   };
-  const fpMap = {};
-  C.sh.forEach(v => {
-    const rows = DATA[v] || [];
-    if (rows.length > 0) {
-      const fp = fingerprint(rows);
-      fpMap[fp] = fpMap[fp] || [];
-      fpMap[fp].push(v);
-    }
-  });
-  // Mantém só o 1º de cada grupo com mesmo fingerprint, zera os demais
-  Object.values(fpMap).forEach(vendors => {
-    if (vendors.length > 1) {
-      vendors.slice(1).forEach(v => {
-        console.warn(`Aba "${v}" é fallback da aba padrão — zerada.`);
-        DATA[v] = [];
-      });
-    }
-  });
+  // Só aplica fingerprint se múltiplas abas JSONP têm mesmos dados
+  const jsonpSheets = C.sh.filter(v => DATA[v] && DATA[v]._via === 'jsonp');
+  if (jsonpSheets.length > 1) {
+    const fpMap = {};
+    jsonpSheets.forEach(v => {
+      const rows = DATA[v] || [];
+      if (rows.length > 0) {
+        const fp = fingerprint(rows);
+        fpMap[fp] = fpMap[fp] || [];
+        fpMap[fp].push(v);
+      }
+    });
+    Object.values(fpMap).forEach(vendors => {
+      if (vendors.length > 1) {
+        vendors.slice(1).forEach(v => {
+          console.warn(`Aba "${v}" é fallback JSONP — zerada.`);
+          DATA[v] = [];
+        });
+      }
+    });
+  }
 
   btn.classList.remove('ld');
   document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
@@ -578,10 +680,10 @@ function render(){
   };
   const rowsFinanceiro = dedupGlobalFn(rows);
 
-  // ── FATURAMENTO: soma FAT.MÊS dos clientes com DIAS VENDA preenchido
-  // (positivados = tiveram venda), usando o registro mais recente de cada cliente
+  // ── FATURAMENTO: soma FAT.MÊS de todos os clientes positivados (FAT.MÊS > 0)
+  // Independente de DIAS VENDA — usa registro mais recente por cliente
   const hasDiasVenda = (r) => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
-  const totVal  = rowsFinanceiro.filter(hasDiasVenda).reduce((a,r) => a + (r.value || 0), 0);
+  const totVal  = rowsFinanceiro.filter(r => r.value > 0).reduce((a,r) => a + (r.value || 0), 0);
   const totMeta = rowsFinanceiro.reduce((a,r) => a + (r.meta || 0), 0);
   const ating   = totMeta > 0 ? Math.round((totVal / totMeta) * 100) : null;
 
@@ -618,7 +720,7 @@ function render(){
     const vdFin = dedupGlobalFn(vd);
     vs[v] = {
       total:       vd.length,
-      value:       vdFin.filter(hasDiasVenda).reduce((a,r) => a + (r.value||0), 0),
+      value:       vdFin.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0),
       meta:        vdFin.reduce((a,r) => a + (r.meta||0), 0),
       positivado:  vd.filter(r => r.value > 0).length,
       nao_venda:   vd.filter(r => r.motivo  && r.motivo.trim()).length,
@@ -939,6 +1041,38 @@ function applyTblFilters(q, stg){
   drawTbl(filtered, true); // true = não atualiza _rows
 }
 
+function searchClient(){
+  const q = (document.getElementById('dbg-client-search').value||'').trim().toLowerCase();
+  const res = document.getElementById('dbg-client-result');
+  if (!q) { res.innerHTML='<span style="color:#888">Digite um código</span>'; return; }
+
+  const activeVendors = ACTIVE==='all' ? C.sh.filter(v=>(DATA[v]||[]).length>0) : [ACTIVE];
+  const allRows = activeVendors.flatMap(v => (DATA[v]||[]).map(r=>({...r,vendor:v})));
+  const found = allRows.filter(r => (r.client||'').toLowerCase().includes(q));
+
+  if (!found.length) {
+    res.innerHTML = `<span style="color:#ff6b6b">Nenhum registro encontrado para "${q}"</span>`;
+    return;
+  }
+
+  // Mostra TODOS os registros brutos desse cliente
+  res.innerHTML = `<div style="color:#ffb800;font-weight:700;margin-bottom:8px">${found.length} registro(s) encontrado(s) para "${q}":</div>` +
+    found.map((r,i) => {
+      // Acessa a célula bruta do gviz para ver o valor original
+      const dvRaw = r.diasVenda || '—';
+      const valRaw = r.value;
+      return `<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.04);border-radius:4px;border-left:3px solid ${valRaw>0?'#00e5a0':r.diasVenda?'#ffb800':'#444'}">
+        [${i}] vendor=<b style="color:#3a6fd8">${r.vendor}</b> | client=<b style="color:#fff">${r.client}</b><br>
+        dateRaw=<b style="color:#ccc">"${r.dateRaw}"</b> | date=${r.date?r.date.toISOString().slice(0,16):'null'}<br>
+        value=<b style="color:${valRaw>0?'#00e5a0':'#ff6b6b'}">${valRaw}</b> (raw FAT.MÊS) | 
+        diasVenda=<b style="color:${dvRaw!=='—'&&dvRaw!=='0'?'#00e5a0':'#888'}">"${dvRaw}"</b> (len:${dvRaw.length}) |
+        contato=<b style="color:#ccc">"${r.contato||'—'}"</b> | 
+        carteira=<b style="color:#ccc">"${r.carteira||'—'}"</b><br>
+        motivo=<b style="color:#ccc">"${r.motivo||'—'}"</b> | meta=<b style="color:#3a6fd8">${r.meta}</b>
+      </div>`;
+    }).join('');
+}
+
 // ── HELPERS ──────────────────────────────────────────
 function swV(v){ACTIVE=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===v));render();}
 function fBRL(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);}
@@ -960,6 +1094,17 @@ function showDebug(){
     <div style="font-family:'Montserrat',sans-serif;font-size:15px;font-weight:800;color:#ffb800;margin-bottom:12px">
       🕐 ANÁLISE DE TIMESTAMPS — Vendedor: <span style="color:#fff">${ACTIVE}</span>
     </div>`;
+
+  // ── BLOCO 0: Busca específica por cliente ──────────────
+  html += `<div style="margin-bottom:24px;padding:14px;background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.3);border-radius:8px">
+    <div style="color:#ffb800;font-weight:800;margin-bottom:10px;font-size:13px">🔍 BUSCA POR CLIENTE ESPECÍFICO</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="dbg-client-search" placeholder="Digite o código do cliente (ex: 39196)" 
+        style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 12px;color:#fff;font-family:'Roboto Mono',monospace;font-size:12px;outline:none">
+      <button onclick="searchClient()" style="background:#ffb800;color:#000;border:none;border-radius:6px;padding:8px 18px;font-weight:800;cursor:pointer;font-size:12px">Buscar</button>
+    </div>
+    <div id="dbg-client-result" style="font-size:11px;font-family:'Roboto Mono',monospace"></div>
+  </div>`;
 
   // Agrupa todos os registros por cliente
   const byClient = {};
@@ -1047,29 +1192,41 @@ function showDebug(){
   const hasDV = r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
   const step2DV = step2.filter(hasDV);
 
+  const metaTotal = step2.reduce((a,r)=>a+(r.meta||0),0);
+  const fatTotal  = step2.filter(r=>r.value>0).reduce((a,r)=>a+(r.value||0),0);
+  const atingDbg  = metaTotal > 0 ? Math.round((fatTotal/metaTotal)*100) : null;
+
+  // Top 10 META para ver se vêm corretas
+  const top10meta = [...step2].filter(r=>r.meta>0).sort((a,b)=>(b.meta||0)-(a.meta||0)).slice(0,10);
+
   html += `<div style="padding:12px;background:rgba(0,229,160,.05);border-radius:8px;border:1px solid rgba(0,229,160,.3)">
-    <div style="color:#00e5a0;font-weight:700;margin-bottom:10px">📊 RESULTADO FINAL DO FATURAMENTO</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+    <div style="color:#00e5a0;font-weight:700;margin-bottom:10px">📊 RESULTADO FINAL</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div style="background:rgba(255,255,255,.04);padding:10px;border-radius:6px">
-        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">APÓS DEDUP VENDOR+CLIENTE</div>
-        <div style="color:#fff;font-size:16px;font-weight:700">${step1.length} clientes</div>
-        <div style="color:#ffb800;font-size:12px">${fBRL(step1.reduce((a,r)=>a+(r.value||0),0))}</div>
-      </div>
-      <div style="background:rgba(255,255,255,.04);padding:10px;border-radius:6px">
-        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">APÓS DEDUP GLOBAL</div>
-        <div style="color:#fff;font-size:16px;font-weight:700">${step2.length} clientes</div>
-        <div style="color:#ffb800;font-size:12px">${fBRL(step2.reduce((a,r)=>a+(r.value||0),0))}</div>
+        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">CLIENTES ÚNICOS</div>
+        <div style="color:#fff;font-size:16px;font-weight:700">${step2.length}</div>
       </div>
       <div style="background:rgba(0,229,160,.08);padding:10px;border-radius:6px;border:1px solid rgba(0,229,160,.3)">
-        <div style="color:#00e5a0;font-size:10px;font-weight:700;margin-bottom:4px">✅ COM DIAS VENDA (CARTÃO)</div>
-        <div style="color:#fff;font-size:16px;font-weight:700">${step2DV.length} clientes</div>
-        <div style="color:#00e5a0;font-size:14px;font-weight:800">${fBRL(step2DV.reduce((a,r)=>a+(r.value||0),0))}</div>
+        <div style="color:#00e5a0;font-size:10px;font-weight:700;margin-bottom:4px">✅ FATURAMENTO (FAT > 0)</div>
+        <div style="color:#00e5a0;font-size:14px;font-weight:800">${fBRL(fatTotal)}</div>
+        <div style="color:#888;font-size:10px">${step2.filter(r=>r.value>0).length} clientes</div>
+      </div>
+      <div style="background:rgba(58,111,216,.08);padding:10px;border-radius:6px;border:1px solid rgba(58,111,216,.3)">
+        <div style="color:#3a6fd8;font-size:10px;font-weight:700;margin-bottom:4px">META TOTAL</div>
+        <div style="color:#3a6fd8;font-size:14px;font-weight:800">${fBRL(metaTotal)}</div>
+        <div style="color:#888;font-size:10px">Ating: ${atingDbg!=null?atingDbg+'%':'—'}</div>
       </div>
     </div>
-    <div style="margin-top:10px;font-size:11px;color:#888">
-      Clientes com DIAS VENDA: ${step2DV.map(r=>`<span style="color:#ccc">${r.client}</span>=<span style="color:#00e5a0">${fBRL(r.value)}</span> <span style="color:#666">(${r.dateRaw||'—'})</span>`).slice(0,10).join(' · ')}
-      ${step2DV.length > 10 ? `<span style="color:#666"> ...+${step2DV.length-10} mais</span>` : ''}
-    </div>
+    <div style="color:#ffb800;font-weight:700;margin-bottom:6px;font-size:11px">Top 10 maiores META FAT. (raw):</div>
+    <table style="width:100%;border-collapse:collapse;font-size:10px">
+      <tr style="color:#888"><th style="text-align:left;padding:3px 6px">Cliente</th><th style="padding:3px 6px">META raw</th><th style="padding:3px 6px">FAT.MÊS raw</th><th style="padding:3px 6px">Data</th></tr>
+      ${top10meta.map(r=>`<tr style="border-top:1px solid rgba(255,255,255,.04)">
+        <td style="padding:3px 6px;color:#fff">${r.client}</td>
+        <td style="padding:3px 6px;color:#3a6fd8;font-weight:700">${fBRL(r.meta)}</td>
+        <td style="padding:3px 6px;color:#00e5a0">${fBRL(r.value)}</td>
+        <td style="padding:3px 6px;color:#666">${r.dateRaw||'—'}</td>
+      </tr>`).join('')}
+    </table>
   </div>`;
 
   html += `</div>`;
