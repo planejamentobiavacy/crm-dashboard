@@ -293,34 +293,35 @@ function saveSett(){
 let _cbIdx = 0;
 
 async function fetchSheet(name) {
-  // Tenta múltiplos endpoints CSV — lê valores calculados de fórmulas
-  const urls = [
+  // CSV via gviz — lê valores calculados incluindo campos com ";"
+  // Tentamos gviz CSV e export CSV em sequência
+  for (const csvUrl of [
     `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
     `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}`,
-  ];
-
-  for (const csvUrl of urls) {
+  ]) {
     try {
-      const r = await fetch(csvUrl, { signal: AbortSignal.timeout(10000) });
+      const r = await fetch(csvUrl, { signal: AbortSignal.timeout(12000) });
       if (r.ok) {
         const txt = await r.text();
         if (txt && txt.trim().length > 10 && !txt.trim().startsWith('<')) {
-          console.log(`✅ CSV [${csvUrl.includes('export')?'export':'gviz'}]: ${name} — ${txt.split('\n').length} linhas`);
-          const r2 = parseCSV(txt, name);
-          r2._via = 'csv';
-          return r2;
+          const rows = parseCSV(txt, name);
+          if (rows.length > 0) {
+            console.log(`✅ CSV: ${name} — ${rows.length} clientes`);
+            rows._via = 'csv';
+            return rows;
+          }
         }
       }
     } catch(e) {
-      console.warn(`CSV falhou (${csvUrl.includes('export')?'export':'gviz'}) "${name}":`, e.message);
+      console.warn(`CSV falhou "${name}":`, e.message);
     }
   }
 
-  // Fallback JSONP — não lê campos com ";" mas carrega os demais
-  console.warn(`⚠️ JSONP "${name}" — DIAS VENDA/CONTATO podem não aparecer`);
+  // JSONP apenas se ambos CSVs falharam
+  console.warn(`⚠️ JSONP "${name}" — DIAS VENDA/CONTATO com ";" não aparecerão`);
   return new Promise((resolve) => {
     const cbName = `_gs${_cbIdx++}`;
-    const timer = setTimeout(() => { cleanup(); resolve([]); }, 12000);
+    const timer = setTimeout(() => { cleanup(); resolve([]); }, 15000);
     function cleanup() {
       clearTimeout(timer);
       delete window[cbName];
@@ -1072,7 +1073,7 @@ function searchClient(){
       const coCsv   = r._rawCols && r._iCo >= 0 ? (r._rawCols[r._iCo]||'(vazio)') : '(sem raw)';
       const headers = DATA['__cols__'+r.vendor] || [];
       return `<div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid ${valRaw>0?'#00e5a0':'#444'}">
-        <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw}<br><br>
+        <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw} — <span style="color:${(DATA[r.vendor]||[])._via==='csv'?'#00e5a0':'#ffb800'};font-weight:700">via: ${(DATA[r.vendor]||[])._via||'?'}</span><br><br>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
           <div style="background:rgba(0,229,160,.05);padding:8px;border-radius:4px;border:1px solid rgba(0,229,160,.2)">
             <div style="color:#00e5a0;font-weight:700;margin-bottom:4px">DIAS VENDA</div>
