@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM · Funil de Vendas</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --blue:  #1a3a8c;
+  --blue2: #2452b8;
+  --blue3: #3a6fd8;
+  --red:   #cc1a1a;
+  --red2:  #e52828;
+  --white: #ffffff;
+  --off:   #f4f6fb;
+  --gray:  #e8ecf5;
+  --gray2: #c8d0e0;
+  --text:  #0f1f4a;
+  --text2: #4a5878;
+  --text3: #8a97b8;
+  --sh:    0 4px 24px rgba(26,58,140,.10);
+  --sh2:   0 8px 40px rgba(26,58,140,.18);
+  --r:     14px;
+  --g-pos: #1a8c4e;
+  --g-nav: #cc1a1a;
+  --g-cnt: #1a3a8c;
+  --g-car: #b87a00;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text);min-height:100vh}
+
+/* ── HEADER ── */
+.hdr{position:sticky;top:0;z-index:100;background:var(--blue);box-shadow:var(--sh);overflow:hidden;min-height:100px}
+.hdr-wave{position:absolute;inset:0;pointer-events:none}
+/* Red diagonal accent — bottom-right corner only */
+.hdr-wave::before{content:'';position:absolute;top:-30px;right:-60px;width:28%;height:200%;
+  background:var(--red);transform:skewX(-12deg);border-radius:0}
+/* Darker red sliver behind */
+.hdr-wave::after{content:'';position:absolute;top:-30px;right:-90px;width:20%;height:200%;
+  background:var(--red2);opacity:.6;transform:skewX(-12deg)}
+/* No white swoosh */
+.hdr-swoosh{display:none}
+.hdr-inner{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:22px 36px;flex-wrap:wrap;gap:12px}
+.logo{display:flex;align-items:center;gap:14px}
+.logo-ico{width:50px;height:50px;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.3);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;}
+.logo-txt .t1{font-size:20px;font-weight:900;letter-spacing:-.5px;color:var(--white)}
+.logo-txt .t2{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.hdr-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.upd{font-family:'Roboto Mono',monospace;font-size:11px;color:rgba(255,255,255,.6)}
+.btn{padding:9px 20px;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .2s;letter-spacing:.3px}
+.btn-w{background:var(--white);color:var(--blue)}.btn-w:hover{background:var(--gray)}
+.btn-r{background:var(--red2);color:var(--white);border:1.5px solid rgba(255,255,255,.2)}.btn-r:hover{background:var(--red)}
+.btn.ld{opacity:.6;pointer-events:none}
+
+/* ── SETTINGS ── */
+.sett{display:none;background:var(--white);border-bottom:2px solid var(--gray);padding:22px 36px}
+.sett.open{display:block}
+.sett-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:14px}
+.fl{display:flex;flex-direction:column;gap:5px}
+.fl label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3)}
+.fl input{background:var(--off);border:1.5px solid var(--gray2);border-radius:8px;padding:8px 12px;font-family:'Roboto Mono',monospace;font-size:12px;color:var(--text);outline:none;transition:border-color .2s}
+.fl input:focus{border-color:var(--blue2)}
+
+/* ── TABS ── */
+.tabs{background:var(--white);border-bottom:2px solid var(--gray);padding:0 36px;display:flex;gap:4px;overflow-x:auto}
+.vtab{padding:13px 22px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap;transition:all .2s;user-select:none}
+.vtab:hover{color:var(--blue2)}.vtab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* ── DATE BAR ── */
+.dbar{background:var(--white);border-bottom:2px solid var(--gray);padding:11px 36px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dlbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)}
+.dchip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray2);background:var(--white);color:var(--text2);transition:all .2s}
+.dchip:hover{border-color:var(--blue2);color:var(--blue)}.dchip.active{background:var(--blue);border-color:var(--blue);color:var(--white)}
+.dinp{background:var(--off);border:1.5px solid var(--gray2);border-radius:8px;padding:5px 11px;font-family:'Roboto Mono',monospace;font-size:12px;color:var(--text);outline:none}
+.dinp:focus{border-color:var(--blue2)}
+
+/* ── MAIN ── */
+main{padding:26px 36px;max-width:1600px;margin:0 auto}
+
+/* ── KPI ── */
+.kpi-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--white);border-radius:var(--r);padding:20px 18px 16px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.kpi:hover{transform:translateY(-3px);box-shadow:var(--sh2)}
+.kpi-bar{position:absolute;top:0;left:0;right:0;height:4px;background:var(--kc,var(--blue));border-radius:var(--r) var(--r) 0 0}
+.kpi-ico{position:absolute;top:14px;right:14px;font-size:30px;opacity:.1}
+.kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:9px}
+.kpi-val{font-family:'Roboto Mono',monospace;font-size:30px;font-weight:500;color:var(--text);line-height:1;margin-bottom:5px}
+.kpi-val.sm{font-size:19px}.kpi-sub{font-size:11px;color:var(--text3);font-weight:500}
+
+/* ── SECTION TITLE ── */
+.stitle{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.stitle::before{content:'';display:inline-block;width:4px;height:16px;background:var(--al,var(--blue));border-radius:2px}
+
+/* ── STAGE CARDS ── */
+.stg-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+@media(max-width:900px){.stg-row{grid-template-columns:repeat(2,1fr)}}
+.stg{background:var(--white);border-radius:var(--r);padding:18px;box-shadow:var(--sh);border-top:4px solid var(--sc,var(--blue));position:relative;overflow:hidden;transition:transform .2s}
+.stg:hover{transform:translateY(-2px)}
+.stg-arr{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:30px;opacity:.07}
+.stg-nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--sc,var(--blue));margin-bottom:8px}
+.stg-ct{font-family:'Roboto Mono',monospace;font-size:36px;font-weight:500;color:var(--text);line-height:1;margin-bottom:3px}
+.stg-pc{font-size:11px;color:var(--text3);font-weight:600}
+.stg-trk{margin-top:10px;height:5px;background:var(--gray);border-radius:4px;overflow:hidden}
+.stg-fil{height:100%;border-radius:4px;background:var(--sc,var(--blue));transition:width .8s cubic-bezier(.23,1,.32,1)}
+
+/* ── CHARTS ── */
+.ch-row{display:grid;grid-template-columns:1fr 350px;gap:18px;margin-bottom:22px}
+@media(max-width:1100px){.ch-row{grid-template-columns:1fr}}
+.ch-card{background:var(--white);border-radius:var(--r);padding:22px;box-shadow:var(--sh)}
+.ch-wrap{position:relative;height:265px}
+
+/* ── FUNNEL LIST ── */
+.fn-list{display:flex;flex-direction:column;gap:11px}
+.fn-row{display:flex;align-items:center;gap:10px}
+.fn-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.fn-nm{font-size:12px;font-weight:600;color:var(--text2);width:108px;flex-shrink:0}
+.fn-trk{flex:1;height:26px;background:var(--gray);border-radius:6px;overflow:hidden}
+.fn-fil{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;transition:width .9s cubic-bezier(.23,1,.32,1)}
+.fn-fil span{font-family:'Roboto Mono',monospace;font-size:11px;font-weight:500;color:#fff;white-space:nowrap}
+.fn-pc{font-family:'Roboto Mono',monospace;font-size:12px;font-weight:500;color:var(--text3);width:40px;text-align:right;flex-shrink:0}
+
+/* ── VENDOR CARDS ── */
+.vnd-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-bottom:22px}
+.vnd{background:var(--white);border-radius:var(--r);padding:18px;box-shadow:var(--sh);cursor:pointer;transition:all .2s;border-left:4px solid var(--blue)}
+.vnd:hover{transform:translateY(-2px);box-shadow:var(--sh2);border-left-color:var(--red)}
+.vnd-h{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.vnd-av{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--blue2));display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:#fff;flex-shrink:0}
+.vnd-nm{font-size:15px;font-weight:800;color:var(--text)}.vnd-sb{font-size:11px;color:var(--text3);font-family:'Roboto Mono',monospace}
+.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mini-s{background:var(--off);border-radius:6px;padding:7px 4px;text-align:center}
+.mini-v{font-family:'Roboto Mono',monospace;font-size:16px;font-weight:500}
+.mini-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-top:2px}
+
+/* ── TABLE ── */
+.tbl-card{background:var(--white);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:28px}
+.tbl-hd{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:linear-gradient(90deg,var(--blue),var(--blue2))}
+.tbl-ti{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#fff}
+.tbl-srch{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 14px;color:#fff;font-family:'Roboto Mono',monospace;font-size:12px;outline:none;width:210px}
+.tbl-srch::placeholder{color:rgba(255,255,255,.5)}.tbl-srch:focus{border-color:rgba(255,255,255,.7)}
+table{width:100%;border-collapse:collapse}
+thead th{padding:10px 18px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);background:var(--off);border-bottom:2px solid var(--gray);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--gray);transition:background .12s}
+tbody tr:hover{background:rgba(26,58,140,.03)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:11px 18px;font-size:13px;color:var(--text2);white-space:nowrap}
+tbody td:first-child{font-weight:700;color:var(--text)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px}
+
+/* ── STATES ── */
+.st-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px;color:var(--text3);gap:14px;text-align:center}
+.st-ico{font-size:44px;opacity:.3}.st-box p{font-size:14px;font-weight:600}
+.spin{width:36px;height:36px;border:3px solid var(--gray);border-top-color:var(--blue);border-radius:50%;animation:sp .75s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.err{background:#fff3f3;border:1.5px solid #ffc5c5;border-radius:10px;padding:12px 18px;color:var(--red);font-size:13px;font-weight:600;margin-bottom:18px;display:none}
+.err.on{display:block}
+.fin{animation:fi .35s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── STAGE FILTER CHIPS (tabela) ── */
+.stg-chip{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--gray2);background:var(--white);color:var(--text2);transition:all .2s;white-space:nowrap}
+.stg-chip:hover{border-color:var(--cc,var(--blue2));color:var(--cc,var(--blue))}
+.stg-chip.active{background:var(--cc,var(--blue));border-color:var(--cc,var(--blue));color:#fff}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--gray)}
+::-webkit-scrollbar-thumb{background:var(--gray2);border-radius:4px}
+@media(max-width:1100px){.ch-row{grid-template-columns:1fr};[style*="grid-template-columns:1fr 300px"]{grid-template-columns:1fr!important}}
+@media(max-width:768px){.hdr-inner,main{padding-left:16px;padding-right:16px}.tabs,.dbar{padding-left:16px;padding-right:16px}.kpi-val{font-size:22px}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-wave"></div>
+  <div class="hdr-swoosh"></div>
+  <div class="hdr-inner">
+    <div class="logo">
+      <div class="logo-ico">📊</div>
+      <div class="logo-txt">
+        <div class="t1">CRM · Funil de Vendas</div>
+        <div class="t2">Consolidado de Vendedores</div>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <span class="upd" id="upd">—</span>
+      <button class="btn btn-w" id="btn-ref" onclick="loadData()">↻ Atualizar</button>
+      <button class="btn btn-r" onclick="toggleSett()">⚙ Configurar</button>
+      <button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.3)" onclick="showDebug()">🔍 Debug</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="sett" id="sett">
+  <div class="sett-g">
+    <div class="fl"><label>ID da Planilha</label><input id="s-id" value="1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA"></div>
+    <div class="fl"><label>Abas dos Vendedores (vírgula)</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATEUS, NOA, RAFAEL, ROSANE, THAIS, WESLEY"></div>
+    <div class="fl"><label>Col. Grupo Comercial</label><input id="s-cl" value="GRUPO COMERCIAL"></div>
+    <div class="fl"><label>Col. Data Envio</label><input id="s-dt" value="DATA ENVIO"></div>
+    <div class="fl"><label>Col. Fat. Mês</label><input id="s-vl" value="FAT. MÊS"></div>
+    <div class="fl"><label>Col. Carteira</label><input id="s-ca" value="CARTEIRA"></div>
+    <div class="fl"><label>Col. Dias Contato</label><input id="s-co" value="DIAS CONTATO"></div>
+    <div class="fl"><label>Col. Não Venda</label><input id="s-mo" value="NÃO VENDA"></div>
+  </div>
+  <button class="btn" style="background:var(--blue);color:#fff" onclick="saveSett()">💾 Salvar e Recarregar</button>
+</div>
+
+<!-- DEBUG MODAL -->
+<div id="dbg-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2000;overflow:auto;padding:30px">
+  <div style="background:#0f1f4a;border-radius:14px;padding:28px;max-width:1100px;margin:0 auto;color:#e8ecf0;font-family:'Roboto Mono',monospace;font-size:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-family:'Montserrat',sans-serif;font-size:18px;font-weight:800;color:#fff">🔍 Debug — Dados Brutos</div>
+      <button onclick="document.getElementById('dbg-overlay').style.display='none'" style="background:rgba(255,255,255,.1);border:none;color:#fff;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px">✕ Fechar</button>
+    </div>
+    <div id="dbg-content"></div>
+  </div>
+</div>
+
+
+<div class="tabs" id="tabs"></div>
+
+<!-- DATE BAR -->
+<div class="dbar" id="dbar" style="display:none">
+  <span class="dlbl">📅 Período:</span>
+  <div class="dchip active" onclick="setPeriod('all',this)">Todos</div>
+  <div class="dchip" onclick="setPeriod('7',this)">7 dias</div>
+  <div class="dchip" onclick="setPeriod('mtd',this)">MTD</div>
+  <div class="dchip" onclick="setPeriod('custom',this)">Personalizado</div>
+  <input type="date" class="dinp" id="d-from" style="display:none" onchange="applyDates()">
+  <span id="d-sep" style="display:none;color:var(--text3);font-size:12px">até</span>
+  <input type="date" class="dinp" id="d-to" style="display:none" onchange="applyDates()">
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="err" id="err"></div>
+  <div id="mc">
+    <div class="st-box"><div class="spin"></div><p>Carregando dados da planilha…</p></div>
+  </div>
+</main>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────
+const C = {
+  id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
+  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY'],
+  cl:  'GRUPO COMERCIAL',
+  dt:  'DATA ENVIO',
+  vl:  'FAT. MÊS',
+  ca:  'CARTEIRA',
+  co:  'DIAS CONTATO',
+  mo:  'NÃO VENDA',
+  mo2: 'MOTIVO',
+  meta:'META FAT.',       // coluna de meta de faturamento
+  dv:  'DIAS VENDA',     // coluna de dias venda (positivados no gráfico)
+};
+
+const STAGES = [
+  { key:'positivado',  lbl:'Positivado',  col:'#1a8c4e', bg:'#e6f7ee' },
+  { key:'nao_venda',   lbl:'Não Venda',   col:'#cc1a1a', bg:'#ffeaea' },
+  { key:'em_contato',  lbl:'Contato',     col:'#1a3a8c', bg:'#e8eef9' },
+  { key:'em_carteira', lbl:'Carteira',    col:'#b87a00', bg:'#fff8e6' },
+];
+
+// ── STATE ────────────────────────────────────────────
+let DATA = {}, ACTIVE = 'all', PERIOD = 'all';
+let D_FROM = null, D_TO = null, CH = null;
+let _rows = [];
+
+// ── BOOT ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', loadData);
+
+// ── SETTINGS ─────────────────────────────────────────
+function toggleSett(){ document.getElementById('sett').classList.toggle('open'); }
+function saveSett(){
+  C.id = document.getElementById('s-id').value.trim();
+  C.sh = document.getElementById('s-sh').value.split(',').map(s=>s.trim()).filter(Boolean);
+  C.cl = document.getElementById('s-cl').value.trim();
+  C.dt = document.getElementById('s-dt').value.trim();
+  C.vl = document.getElementById('s-vl').value.trim();
+  C.ca = document.getElementById('s-ca').value.trim();
+  C.co = document.getElementById('s-co').value.trim();
+  C.mo = document.getElementById('s-mo').value.trim();  document.getElementById('sett').classList.remove('open');
+  loadData();
+}
+
+// ── FETCH via JSONP ─────────────────────────────────────
+// fetch() é bloqueado pelo Chrome quando aberto de file://.
+// JSONP via <script> tag funciona de qualquer origem — sem CORS.
+// NÃO usamos onerror (dispara falso no Chrome); usamos apenas timeout.
+let _cbIdx = 0;
+
+function fetchSheet(name) {
+  return new Promise((resolve) => {
+    const cbName = `_gs${_cbIdx++}`;
+
+    const timer = setTimeout(() => {
+      cleanup();
+      console.warn(`Aba "${name}" — timeout (não existe ou lenta).`);
+      resolve([]);
+    }, 12000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      const el = document.getElementById('_s_' + cbName);
+      if (el) el.remove();
+    }
+
+    window[cbName] = function(resp) {
+      cleanup();
+      try {
+        const rows = parseGviz(resp, name);
+        resolve(rows);
+      } catch(e) {
+        console.warn(`Erro ao processar "${name}":`, e.message);
+        resolve([]);
+      }
+    };
+
+    const url = `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(name)}&headers=1`;
+    const s = document.createElement('script');
+    s.id = '_s_' + cbName;
+    s.src = url;
+    // SEM onerror — dispara falsamente no Chrome para file://
+    document.head.appendChild(s);
+  });
+}
+
+// Converte resposta gviz JSON → rows
+function parseGviz(resp, vendor) {
+  const tbl = resp && resp.table;
+  if (!tbl || !tbl.cols || !tbl.rows) return [];
+
+  const cols = tbl.cols.map(c => (c.label || c.id || '').trim());
+  DATA['__cols__' + vendor] = cols;
+
+  const fi = (name) => {
+    const n = name.toLowerCase();
+    let i = cols.findIndex(h => h.toLowerCase() === n);
+    if (i < 0) i = cols.findIndex(h => h.toLowerCase().includes(n.slice(0, 6)));
+    return i;
+  };
+
+  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+        iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
+        iMeta=fi(C.meta), iDv=fi(C.dv);
+
+  // Helpers para ler células gviz
+  const gStr = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    if (!cell) return '';
+    const f = cell.f != null ? String(cell.f).trim() : '';
+    const v = cell.v != null ? String(cell.v).trim() : '';
+    return f || v;
+  };
+  const gStrRaw = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    return (cell && cell.v != null) ? String(cell.v).trim() : '';
+  };
+  const gNum = (row, i) => {
+    if (i < 0) return 0;
+    const cell = (row.c || [])[i];
+    if (!cell || cell.v == null) return 0;
+    if (typeof cell.v === 'number') return cell.v;
+    return parseFloat(String(cell.f || cell.v).replace(/[R$\s.]/g,'').replace(',','.')) || 0;
+  };
+  const gDate = (row, i) => {
+    if (i < 0) return null;
+    const cell = (row.c || [])[i];
+    if (!cell) return null;
+    if (typeof cell.v === 'string' && cell.v.startsWith('Date(')) {
+      const m = cell.v.match(/Date\((\d+),(\d+),(\d+)\)/);
+      if (m) return new Date(+m[1], +m[2], +m[3]);
+    }
+    return pDate(cell.f ? String(cell.f) : (cell.v != null ? String(cell.v) : ''));
+  };
+
+  const rows = [];
+  for (const row of tbl.rows) {
+    const clientRaw = gStr(row, iCl);
+    const dateStr   = gStr(row, iDt);
+    if (!clientRaw && !dateStr) continue;
+    const motivoNV  = gStr(row, iMo);
+    const motivoMot = gStr(row, iMo2);
+    rows.push({
+      vendor,
+      client:    clientRaw.replace(/\.0+$/, ''),
+      dateRaw:   dateStr,
+      date:      gDate(row, iDt),
+      value:     gNum(row, iVl),
+      meta:      gNum(row, iMeta),
+      diasVenda: gStrRaw(row, iDv),
+      carteira:  gStr(row, iCa),
+      contato:   gStrRaw(row, iCo),
+      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+    });
+  }
+  return rows;
+}
+
+
+// ── pDate — parser de data com hora para dedup preciso ─
+function pDate(s){
+  if(!s) return null;
+  s = String(s).trim();
+  // DD/MM/YYYY HH:MM — guarda hora para desempate no dedup
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if(m){
+    const y   = m[3].length===2 ? '20'+m[3] : m[3];
+    const hh  = m[4] ? m[4].padStart(2,'0') : '00';
+    const mm  = m[5] ? m[5].padStart(2,'0') : '00';
+    // dateOnly: meia-noite — usado para agrupar por dia no gráfico
+    // date: timestamp completo — usado no dedup para pegar o mais recente do dia
+    return new Date(`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh}:${mm}:00`);
+  }
+  m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m) return new Date(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+function pMoney(s){
+  if(!s)return 0;
+  return parseFloat(s.replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.'))||0;
+}
+
+// ── LOAD ──────────────────────────────────────────────
+async function loadData(){
+  const btn = document.getElementById('btn-ref');
+  btn.classList.add('ld');
+  setLoad(); hideErr();
+  DATA = {};
+
+  // fetchSheet nunca rejeita — abas inexistentes retornam []
+  await Promise.all(C.sh.map(async name => {
+    DATA[name] = await fetchSheet(name);
+  }));
+
+  // Detecta vendedores que receberam a aba padrão como fallback do Google
+  // Fingerprint robusto: nº linhas + soma de valores + 5 primeiros clientes
+  const fingerprint = (rows) => {
+    const count = rows.length;
+    const valSum = rows.reduce((a,r)=>a+(r.value||0),0).toFixed(0);
+    const clients = rows.slice(0,5).map(r=>r.client).join('|');
+    return `${count}::${valSum}::${clients}`;
+  };
+  const fpMap = {};
+  C.sh.forEach(v => {
+    const rows = DATA[v] || [];
+    if (rows.length > 0) {
+      const fp = fingerprint(rows);
+      fpMap[fp] = fpMap[fp] || [];
+      fpMap[fp].push(v);
+    }
+  });
+  // Mantém só o 1º de cada grupo com mesmo fingerprint, zera os demais
+  Object.values(fpMap).forEach(vendors => {
+    if (vendors.length > 1) {
+      vendors.slice(1).forEach(v => {
+        console.warn(`Aba "${v}" é fallback da aba padrão — zerada.`);
+        DATA[v] = [];
+      });
+    }
+  });
+
+  btn.classList.remove('ld');
+  document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+  const totalRows = C.sh.reduce((a,v) => a + (DATA[v]||[]).length, 0);
+  if (totalRows === 0) showErr('⚠️ Nenhum dado carregado. Verifique o compartilhamento da planilha.');
+  document.getElementById('dbar').style.display = 'flex';
+  buildTabs(); render();
+}
+
+// ── PERIOD ────────────────────────────────────────────
+function setPeriod(p,el){
+  PERIOD=p;
+  document.querySelectorAll('.dchip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  const cu=p==='custom';
+  document.getElementById('d-from').style.display=cu?'':'none';
+  document.getElementById('d-sep').style.display=cu?'':'none';
+  document.getElementById('d-to').style.display=cu?'':'none';
+  if(!cu)render();
+}
+function applyDates(){
+  const f=document.getElementById('d-from').value;
+  const t=document.getElementById('d-to').value;
+  D_FROM=f?new Date(f):null;
+  D_TO=t?new Date(t+'T23:59:59'):null;
+  render();
+}
+function fltPeriod(rows){
+  if(PERIOD==='all') return rows;
+  if(PERIOD==='custom'){
+    return rows.filter(r=>{
+      if(!r.date) return false;
+      if(D_FROM && r.date<D_FROM) return false;
+      if(D_TO   && r.date>D_TO)   return false;
+      return true;
+    });
+  }
+  if(PERIOD==='mtd'){
+    const now = new Date();
+    const ini = new Date(now.getFullYear(), now.getMonth(), 1); // 1º dia do mês atual
+    return rows.filter(r => r.date && r.date >= ini);
+  }
+  // N dias
+  const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
+  return rows.filter(r => r.date && r.date >= cut);
+}
+
+// ── TABS ──────────────────────────────────────────────
+function buildTabs(){
+  const w=document.getElementById('tabs');w.innerHTML='';
+  const sorted = [...C.sh].sort((a,b)=>a.localeCompare(b));
+  [{ k:'all',l:'🌐 Todos' },...sorted.map(s=>({k:s,l:s}))].forEach(t=>{
+    const el=document.createElement('div');
+    el.className='vtab'+(t.k===ACTIVE?' active':'');
+    el.textContent=t.l;
+    el.onclick=()=>{ACTIVE=t.k;document.querySelectorAll('.vtab').forEach(v=>v.classList.remove('active'));el.classList.add('active');render();};
+    w.appendChild(el);
+  });
+}
+
+// ── STATUS — mesma prioridade dos KPIs ───────────────
+function status(r){
+  if(r.value>0)                                          return 'positivado';
+  if(r.motivo&&r.motivo.trim())                          return 'nao_venda';
+  if(r.contato&&r.contato.trim())                        return 'em_contato';
+  if(r.carteira&&r.carteira.toLowerCase().trim()==='sim')return 'em_carteira';
+  return null;
+}
+
+// Keep most recent row per (vendor+client)
+function dedup(rows){
+  const m=new Map();
+  for(const r of rows){
+    const k=`${r.vendor}::${(r.client||'').toLowerCase()}`;
+    const ex=m.get(k);
+    if(!ex){m.set(k,r);continue;}
+    const a=ex.date?ex.date.getTime():0;
+    const b=r.date?r.date.getTime():0;
+    if(b>a)m.set(k,r);
+  }
+  return Array.from(m.values());
+}
+
+// ── RENDER ────────────────────────────────────────────
+function render(){
+  // Todos os dados brutos — exclui chaves internas __cols__
+  const getRaw = (vendor) => (DATA[vendor] || []).map(r => ({...r, vendor}));
+  const allRaw = ACTIVE==='all'
+    ? C.sh.flatMap(v => getRaw(v))
+    : getRaw(ACTIVE);
+
+  // ── Deduplica por (vendor + cliente) mantendo data mais recente — para KPIs de contagem
+  const dd   = dedup(allRaw);
+  const rows = fltPeriod(dd);
+
+  // ── Dedup GLOBAL por cliente (sem vendor) — 1 linha por cliente, a mais recente
+  const dedupGlobalFn = (arr) => {
+    const m = new Map();
+    for (const r of arr) {
+      const k = (r.client||'').toLowerCase().trim();
+      if (!k) continue;
+      const ex = m.get(k);
+      if (!ex) { m.set(k, r); continue; }
+      const a = ex.date ? ex.date.getTime() : 0;
+      const b =  r.date ?  r.date.getTime() : 0;
+      if (b > a) m.set(k, r);
+    }
+    return Array.from(m.values());
+  };
+  const rowsFinanceiro = dedupGlobalFn(rows);
+
+  // ── FATURAMENTO: soma FAT.MÊS dos clientes com DIAS VENDA preenchido
+  // (positivados = tiveram venda), usando o registro mais recente de cada cliente
+  const hasDiasVenda = (r) => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
+  const totVal  = rowsFinanceiro.filter(hasDiasVenda).reduce((a,r) => a + (r.value || 0), 0);
+  const totMeta = rowsFinanceiro.reduce((a,r) => a + (r.meta || 0), 0);
+  const ating   = totMeta > 0 ? Math.round((totVal / totMeta) * 100) : null;
+
+  // ── KPIs de contagem
+  const cntPos  = rows.filter(r => r.value > 0).length;
+  const cntNav  = rows.filter(r => r.motivo  && r.motivo.trim()).length;
+  const cntCon  = rows.filter(r => r.contato && r.contato.trim()).length;
+  const cntCar  = rows.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
+
+  const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
+  const total = rows.length;
+
+  // ── Evolução diária — usa TODOS os registros brutos (não dedupados)
+  // CONTATOS  = DIAS CONTATO preenchido (string não vazia)
+  // POSITIVADOS = DIAS VENDA preenchido (string não vazia e != "0")
+  const evoRaw = fltPeriod(allRaw);
+
+  const byD = {};
+  evoRaw.forEach(r => {
+    if (!r.date) return;
+    const k = r.date.toISOString().slice(0,10);
+    if (!byD[k]) byD[k] = { contato:0, positivado:0 };
+    const dv = String(r.diasVenda || '').trim();
+    const co = String(r.contato  || '').trim();
+    if (co && co !== '0')            byD[k].contato++;
+    if (dv && dv !== '0' && dv !== '') byD[k].positivado++;
+  });
+  const dKeys = Object.keys(byD).sort();
+
+  // ── Vendor stats
+  const vs = {};
+  C.sh.forEach(v => {
+    const vd    = fltPeriod(dedup(getRaw(v)));
+    const vdFin = dedupGlobalFn(vd);
+    vs[v] = {
+      total:       vd.length,
+      value:       vdFin.filter(hasDiasVenda).reduce((a,r) => a + (r.value||0), 0),
+      meta:        vdFin.reduce((a,r) => a + (r.meta||0), 0),
+      positivado:  vd.filter(r => r.value > 0).length,
+      nao_venda:   vd.filter(r => r.motivo  && r.motivo.trim()).length,
+      em_contato:  vd.filter(r => r.contato && r.contato.trim()).length,
+      em_carteira: vd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
+    };
+  });
+
+  const mc=document.getElementById('mc');
+  mc.innerHTML='';mc.className='fin';
+
+  // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
+  const kpis=[
+    {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
+    {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
+    {ico:'✅',lbl:'Positivado',  val:cntPos,       kc:'var(--g-pos)'},
+    {ico:'❌',lbl:'Não Venda',   val:cntNav,       kc:'var(--red)'},
+    {ico:'💰',lbl:'Faturamento', val:fBRL(totVal), kc:'var(--blue2)', sm:true, ating},
+  ];
+  mc.innerHTML+=`<div class="kpi-g">${kpis.map(k=>`
+    <div class="kpi" style="--kc:${k.kc}">
+      <div class="kpi-bar"></div>
+      <div class="kpi-ico">${k.ico}</div>
+      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-val${k.sm?' sm':''}">${k.val}</div>
+      ${k.ating!=null ? `
+        <div style="margin-top:8px">
+          <div style="height:5px;background:var(--gray);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(k.ating,100)}%;background:${k.ating>=100?'#1a8c4e':k.ating>=70?'#b87a00':'var(--red)'};border-radius:4px;transition:width .8s"></div>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;font-family:'Roboto Mono',monospace">${k.ating}% da meta</div>
+        </div>` : ''}
+    </div>`).join('')}</div>`;
+
+  // ── GRÁFICO + FUNIL lado a lado
+  mc.innerHTML+=`
+  <div style="display:grid;grid-template-columns:1fr 300px;gap:18px;margin-bottom:22px">
+    <div class="ch-card">
+      <div class="stitle" style="--al:var(--blue)">Evolução Diária — Contatos e Positivados</div>
+      <div class="ch-wrap" style="height:280px"><canvas id="cevo"></canvas></div>
+    </div>
+    <div class="ch-card" style="display:flex;flex-direction:column;justify-content:space-between">
+      <div class="stitle" style="--al:var(--red)">Funil de Vendas</div>
+      <div id="funil-wrap" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px"></div>
+    </div>
+  </div>`;
+
+  // Vendor breakdown — ordem alfabética, mini na ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA
+  if(ACTIVE==='all'){
+    const MINI_ORDER = [
+      { key:'em_carteira', lbl:'Carteira',   col:'#b87a00' },
+      { key:'em_contato',  lbl:'Contato',    col:'#1a3a8c' },
+      { key:'positivado',  lbl:'Positivado', col:'#1a8c4e' },
+      { key:'nao_venda',   lbl:'Não Venda',  col:'#cc1a1a' },
+    ];
+    const sortedV = [...C.sh].sort((a,b)=>a.localeCompare(b));
+    mc.innerHTML+=`<div class="stitle" style="--al:#a855f7;margin-bottom:14px">Performance por Vendedor</div>
+    <div class="vnd-g">${sortedV.map(v=>{
+      const s=vs[v]||{},ini=v.slice(0,2).toUpperCase();
+      const vAting = s.meta>0 ? Math.round((s.value/s.meta)*100) : null;
+      const vAtingStr = vAting!=null
+        ? `<span style="font-weight:700;color:${vAting>=100?'#1a8c4e':vAting>=70?'#b87a00':'#cc1a1a'}">${vAting}%</span> meta`
+        : 'sem meta';
+      return `<div class="vnd" onclick="swV('${v}')">
+        <div class="vnd-h">
+          <div class="vnd-av">${ini}</div>
+          <div>
+            <div class="vnd-nm">${v}</div>
+            <div class="vnd-sb">${fBRL(s.value||0)} · ${vAtingStr}</div>
+          </div>
+        </div>
+        <div class="mini">${MINI_ORDER.map(st=>`<div class="mini-s">
+          <div class="mini-v" style="color:${st.col}">${s[st.key]||0}</div>
+          <div class="mini-l">${st.lbl}</div>
+        </div>`).join('')}</div>
+      </div>`;}).join('')}</div>`;
+  }
+
+  // Table — dedup global por cliente, sempre usando o registro mais recente
+  // Usa allRaw (sem filtro de período) para garantir que o mais recente é sempre considerado
+  // Depois aplica filtro de período para exibição se necessário
+  const dedupGlobal = (rows) => {
+    const m = new Map();
+    for (const r of rows) {
+      const k = (r.client || '').toLowerCase().trim();
+      if (!k) continue;
+      const ex = m.get(k);
+      if (!ex) { m.set(k, r); continue; }
+      const a = ex.date ? ex.date.getTime() : 0;
+      const b =  r.date ?  r.date.getTime() : 0;
+      if (b > a) m.set(k, r);
+    }
+    return Array.from(m.values());
+  };
+
+  const rawForTable = dedupGlobal(allRaw)  // allRaw = todos os registros, dedup pega o mais recente
+    .sort((a,b) => (b.value || 0) - (a.value || 0));
+
+  mc.innerHTML+=`
+  <div class="tbl-card">
+    <div class="tbl-hd">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:1">
+        <div class="tbl-ti">📋 Detalhamento de Clientes</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div class="stg-chip active" data-stg="all"    onclick="setStgFilter('all',this)">Todos</div>
+          <div class="stg-chip" data-stg="positivado"    onclick="setStgFilter('positivado',this)"   style="--cc:#1a8c4e">✅ Positivado</div>
+          <div class="stg-chip" data-stg="em_carteira"   onclick="setStgFilter('em_carteira',this)"  style="--cc:#b87a00">💼 Carteira</div>
+          <div class="stg-chip" data-stg="em_contato"    onclick="setStgFilter('em_contato',this)"   style="--cc:#1a3a8c">📞 Contato</div>
+          <div class="stg-chip" data-stg="nao_venda"     onclick="setStgFilter('nao_venda',this)"    style="--cc:#cc1a1a">❌ Não Venda</div>
+        </div>
+      </div>
+      <input class="tbl-srch" id="tq" placeholder="🔍 Buscar cliente…" oninput="fltTbl(this.value)">
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Grupo Comercial</th>
+          ${ACTIVE==='all'?'<th>Vendedor</th>':''}
+          <th>Etapa</th>
+          <th>Fat. Mês</th>
+          <th>Data Envio</th>
+          <th>Carteira</th>
+          <th>Dias Contato</th>
+          <th>Dias Venda</th>
+          <th>Motivo N.V.</th>
+        </tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>`;
+
+  requestAnimationFrame(()=>{
+    buildEvo(dKeys,byD);
+    buildFunil(cntCar, cntCon, cntPos, cntNav, total);
+    drawTbl(rawForTable);
+  });
+}
+
+// ── EVO CHART — linhas de Contatos e Positivados por data ────────
+function buildEvo(dKeys, byD){
+  const ctx = document.getElementById('cevo'); if(!ctx) return;
+  if(CH){ CH.destroy(); CH=null; }
+
+  const labels    = dKeys.map(d => {
+    const dt = new Date(d+'T12:00:00');
+    return dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  });
+  const dataContat = dKeys.map(d => byD[d].contato    || 0);
+  const dataPosit  = dKeys.map(d => byD[d].positivado || 0);
+
+  CH = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Contatos',
+          data: dataContat,
+          borderColor: '#1a3a8c',
+          backgroundColor: 'rgba(26,58,140,.10)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#1a3a8c',
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: false,
+        },
+        {
+          label: 'Positivados',
+          data: dataPosit,
+          borderColor: '#1a8c4e',
+          backgroundColor: 'rgba(26,140,78,.10)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#1a8c4e',
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { color:'#4a5878', font:{family:'Montserrat',size:12,weight:'600'}, boxWidth:14, padding:20 }
+        },
+        tooltip: {
+          backgroundColor: '#0f1f4a',
+          borderColor: 'rgba(255,255,255,.1)',
+          borderWidth: 1,
+          titleColor: '#fff',
+          bodyColor: 'rgba(255,255,255,.8)',
+          titleFont: {family:'Montserrat',size:12,weight:'700'},
+          bodyFont: {family:'Roboto Mono',size:11},
+          padding: 12,
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color:'rgba(0,0,0,.05)' },
+          ticks: { color:'#8a97b8', font:{family:'Roboto Mono',size:10}, stepSize:1 }
+        },
+        x: {
+          grid: { color:'rgba(0,0,0,.04)' },
+          ticks: { color:'#8a97b8', font:{family:'Roboto Mono',size:10}, maxTicksLimit:16, maxRotation:45 }
+        }
+      }
+    }
+  });
+}
+
+// ── FUNIL VISUAL ──────────────────────────────────────
+function buildFunil(cntCar, cntCon, cntPos, cntNav, total){
+  const el = document.getElementById('funil-wrap');
+  if (!el) return;
+
+  const stages = [
+    { lbl:'Carteira',   val:cntCar, col:'#b87a00', bg:'#fff8e6', ico:'💼' },
+    { lbl:'Contato',    val:cntCon, col:'#1a3a8c', bg:'#e8eef9', ico:'📞' },
+    { lbl:'Positivado', val:cntPos, col:'#1a8c4e', bg:'#e6f7ee', ico:'✅' },
+    { lbl:'Não Venda',  val:cntNav, col:'#cc1a1a', bg:'#ffeaea', ico:'❌' },
+  ];
+
+  const max = Math.max(...stages.map(s=>s.val), 1);
+
+  el.innerHTML = stages.map((s, i) => {
+    const pct  = total > 0 ? ((s.val / total) * 100).toFixed(0) : 0;
+    const barW = ((s.val / max) * 100).toFixed(0);
+    // Funil: cada estágio é um pouco mais estreito
+    const marginPx = i * 10;
+    return `<div style="margin:0 ${marginPx}px;transition:margin .4s">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:13px">${s.ico}</span>
+          <span style="font-size:11px;font-weight:700;color:${s.col};text-transform:uppercase;letter-spacing:.5px">${s.lbl}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:'Roboto Mono',monospace;font-size:18px;font-weight:700;color:var(--text)">${s.val}</span>
+          <span style="font-family:'Roboto Mono',monospace;font-size:10px;color:var(--text3)">${pct}%</span>
+        </div>
+      </div>
+      <div style="height:8px;background:var(--gray);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${barW}%;background:${s.col};border-radius:6px;transition:width .8s cubic-bezier(.23,1,.32,1)"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── TABLE ─────────────────────────────────────────────
+function drawTbl(rows, noUpdate){
+  if(!noUpdate) { _rows = rows; _activeStg = 'all'; }
+  const tb = document.getElementById('tb'); if(!tb) return;
+  const showV = ACTIVE==='all';
+  const sm = {positivado:STAGES[0], nao_venda:STAGES[1], em_contato:STAGES[2], em_carteira:STAGES[3]};
+
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = rows.slice(0,300).map(r => {
+    const sk  = status(r);
+    const st  = sk ? sm[sk] : null;
+    const bdg = st
+      ? `<span class="badge" style="background:${st.bg};color:${st.col}">${st.lbl}</span>`
+      : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
+    const car = (r.carteira||'').toLowerCase().trim();
+    return `<tr>
+      <td>${r.client||'—'}</td>
+      ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
+      <td>${bdg}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:${r.value>0?'#1a8c4e':'var(--text2)'};font-weight:${r.value>0?700:400}">${r.value>0?fBRL(r.value):'—'}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${r.dateRaw||'—'}</td>
+      <td style="color:${car==='sim'?'#b87a00':'var(--text3)'};font-weight:${car==='sim'?700:400}">${r.carteira||'—'}</td>
+      <td style="font-family:'Roboto Mono',monospace">${r.contato||'—'}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:#1a8c4e">${r.diasVenda||'—'}</td>
+      <td style="color:var(--red);font-weight:${r.motivo?600:400}">${r.motivo||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  if(rows.length>300)
+    tb.innerHTML+=`<tr><td colspan="9" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Exibindo 300 de ${rows.length} registros</td></tr>`;
+}
+function fltTbl(q){
+  applyTblFilters(q, _activeStg);
+}
+
+let _activeStg = 'all';
+
+function setStgFilter(stg, el){
+  _activeStg = stg;
+  document.querySelectorAll('.stg-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  applyTblFilters(document.getElementById('tq')?.value || '', stg);
+}
+
+function applyTblFilters(q, stg){
+  let filtered = _rows;
+  // Filtro de etapa
+  if(stg && stg !== 'all'){
+    filtered = filtered.filter(r => status(r) === stg);
+  }
+  // Filtro de texto
+  if(q && q.trim()){
+    const lq = q.toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.client||'').toLowerCase().includes(lq) ||
+      (r.vendor||'').toLowerCase().includes(lq) ||
+      (r.motivo||'').toLowerCase().includes(lq)
+    );
+  }
+  drawTbl(filtered, true); // true = não atualiza _rows
+}
+
+// ── HELPERS ──────────────────────────────────────────
+function swV(v){ACTIVE=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===v));render();}
+function fBRL(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);}
+function setLoad(){document.getElementById('mc').innerHTML=`<div class="st-box"><div class="spin"></div><p>Carregando dados da planilha…</p></div>`;}
+function showErr(m){const e=document.getElementById('err');e.innerHTML=m+'<br><small style="font-weight:400;opacity:.8">Verifique: Arquivo → Compartilhar → "Qualquer pessoa com o link pode ver"</small>';e.classList.add('on');}
+function hideErr(){document.getElementById('err').classList.remove('on');}
+
+// ── DEBUG ─────────────────────────────────────────────
+function showDebug(){
+  const el = document.getElementById('dbg-content');
+  let html = '';
+
+  const getRawD = (v) => (DATA[v]||[]).map(r=>({...r,vendor:v}));
+  const activeVendors = ACTIVE==='all' ? C.sh.filter(v=>(DATA[v]||[]).length>0) : [ACTIVE];
+  const allRawD = activeVendors.flatMap(v => getRawD(v));
+
+  // ── BLOCO 1: Análise de timestamps por cliente ──────────────────
+  html += `<div style="margin-bottom:28px">
+    <div style="font-family:'Montserrat',sans-serif;font-size:15px;font-weight:800;color:#ffb800;margin-bottom:12px">
+      🕐 ANÁLISE DE TIMESTAMPS — Vendedor: <span style="color:#fff">${ACTIVE}</span>
+    </div>`;
+
+  // Agrupa todos os registros por cliente
+  const byClient = {};
+  allRawD.forEach(r => {
+    const k = (r.client||'').toLowerCase().trim();
+    if (!k) return;
+    if (!byClient[k]) byClient[k] = [];
+    byClient[k].push(r);
+  });
+
+  // Clientes com mais de 1 registro (candidatos a problema)
+  const multiRows = Object.entries(byClient)
+    .filter(([,rows]) => rows.length > 1)
+    .sort(([,a],[,b]) => b.length - a.length)
+    .slice(0, 15);
+
+  html += `<div style="padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:12px;font-size:12px">
+    <div>Total clientes únicos na aba: <b style="color:#fff">${Object.keys(byClient).length}</b></div>
+    <div>Clientes com <b>1 linha</b>: <b style="color:#00e5a0">${Object.values(byClient).filter(r=>r.length===1).length}</b></div>
+    <div>Clientes com <b>múltiplas linhas</b>: <b style="color:#ffb800">${Object.values(byClient).filter(r=>r.length>1).length}</b>
+      ${Object.values(byClient).filter(r=>r.length>1).length > 0 ? '← <span style="color:#ff6b6b">aqui pode estar o problema</span>' : ''}
+    </div>
+  </div>`;
+
+  if (multiRows.length === 0) {
+    html += `<div style="padding:12px;background:rgba(0,229,160,.05);border-radius:8px;border:1px solid rgba(0,229,160,.2);color:#00e5a0;font-weight:700">
+      ✅ Todos os clientes têm apenas 1 linha — sem problema de duplicatas de timestamp.
+    </div>`;
+  } else {
+    html += `<div style="padding:12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:10px">
+      <div style="color:#ffb800;font-weight:700;margin-bottom:10px">Top ${multiRows.length} clientes com múltiplas linhas:</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="color:#ffb800;border-bottom:1px solid rgba(255,255,255,.1)">
+          <th style="text-align:left;padding:5px 8px">Cliente</th>
+          <th style="padding:5px 8px">Qtd linhas</th>
+          <th style="text-align:left;padding:5px 8px">Timestamps encontrados</th>
+          <th style="text-align:left;padding:5px 8px;color:#00e5a0">✅ Selecionado (mais recente)</th>
+          <th style="padding:5px 8px;color:#00e5a0">FAT.MÊS selecionado</th>
+          <th style="padding:5px 8px;color:#00e5a0">DIAS VENDA selecionado</th>
+        </tr>
+        ${multiRows.map(([client, rows]) => {
+          // Simula exatamente o que o dedup faz
+          let selected = rows[0];
+          rows.forEach(r => {
+            const a = selected.date ? selected.date.getTime() : 0;
+            const b = r.date        ? r.date.getTime()        : 0;
+            if (b > a) selected = r;
+          });
+          const timestamps = rows
+            .map(r => r.dateRaw || '—')
+            .sort()
+            .join('<br>');
+          const dv = String(selected.diasVenda||'').trim();
+          const dvOk = dv && dv !== '0';
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+            <td style="padding:5px 8px;color:#fff;font-weight:700">${rows[0].client}</td>
+            <td style="padding:5px 8px;text-align:center;color:#ffb800">${rows.length}</td>
+            <td style="padding:5px 8px;color:#888;font-size:10px">${timestamps}</td>
+            <td style="padding:5px 8px;color:#00e5a0;font-size:10px">${selected.dateRaw||'—'}</td>
+            <td style="padding:5px 8px;text-align:center;color:${selected.value>0?'#00e5a0':'#666'};font-weight:700">${selected.value>0?fBRL(selected.value):'—'}</td>
+            <td style="padding:5px 8px;text-align:center;color:${dvOk?'#00e5a0':'#666'}">${selected.diasVenda||'—'}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>`;
+  }
+
+  // ── BLOCO 2: Verificação do resultado final ──────────────────────
+  const dedupFn = (rows, keyFn) => {
+    const m = new Map();
+    rows.forEach(r => {
+      const k = keyFn(r);
+      if (!k) return;
+      const ex = m.get(k);
+      if (!ex) { m.set(k, r); return; }
+      const a = ex.date ? ex.date.getTime() : 0;
+      const b =  r.date ?  r.date.getTime() : 0;
+      if (b > a) m.set(k, r);
+    });
+    return Array.from(m.values());
+  };
+
+  const step1 = dedupFn(allRawD, r => `${r.vendor}::${(r.client||'').toLowerCase()}`);
+  const step2 = dedupFn(step1,   r => (r.client||'').toLowerCase().trim());
+  const hasDV = r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
+  const step2DV = step2.filter(hasDV);
+
+  html += `<div style="padding:12px;background:rgba(0,229,160,.05);border-radius:8px;border:1px solid rgba(0,229,160,.3)">
+    <div style="color:#00e5a0;font-weight:700;margin-bottom:10px">📊 RESULTADO FINAL DO FATURAMENTO</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div style="background:rgba(255,255,255,.04);padding:10px;border-radius:6px">
+        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">APÓS DEDUP VENDOR+CLIENTE</div>
+        <div style="color:#fff;font-size:16px;font-weight:700">${step1.length} clientes</div>
+        <div style="color:#ffb800;font-size:12px">${fBRL(step1.reduce((a,r)=>a+(r.value||0),0))}</div>
+      </div>
+      <div style="background:rgba(255,255,255,.04);padding:10px;border-radius:6px">
+        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">APÓS DEDUP GLOBAL</div>
+        <div style="color:#fff;font-size:16px;font-weight:700">${step2.length} clientes</div>
+        <div style="color:#ffb800;font-size:12px">${fBRL(step2.reduce((a,r)=>a+(r.value||0),0))}</div>
+      </div>
+      <div style="background:rgba(0,229,160,.08);padding:10px;border-radius:6px;border:1px solid rgba(0,229,160,.3)">
+        <div style="color:#00e5a0;font-size:10px;font-weight:700;margin-bottom:4px">✅ COM DIAS VENDA (CARTÃO)</div>
+        <div style="color:#fff;font-size:16px;font-weight:700">${step2DV.length} clientes</div>
+        <div style="color:#00e5a0;font-size:14px;font-weight:800">${fBRL(step2DV.reduce((a,r)=>a+(r.value||0),0))}</div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:#888">
+      Clientes com DIAS VENDA: ${step2DV.map(r=>`<span style="color:#ccc">${r.client}</span>=<span style="color:#00e5a0">${fBRL(r.value)}</span> <span style="color:#666">(${r.dateRaw||'—'})</span>`).slice(0,10).join(' · ')}
+      ${step2DV.length > 10 ? `<span style="color:#666"> ...+${step2DV.length-10} mais</span>` : ''}
+    </div>
+  </div>`;
+
+  html += `</div>`;
+  el.innerHTML = html;
+  document.getElementById('dbg-overlay').style.display = 'block';
+}
+</script>
+</body>
+</html>
