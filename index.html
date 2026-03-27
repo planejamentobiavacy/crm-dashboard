@@ -556,40 +556,26 @@ async function loadData(){
     DATA[name] = await fetchSheet(name);
   }));
 
-  // Detecta fallback do Google: quando aba não existe, retorna dados da aba padrão
-  // Fingerprint: nº linhas + soma valores + 5 primeiros clientes
-  const fingerprint = (rows) => {
-    const count   = rows.length;
-    const valSum  = rows.reduce((a,r) => a + (r.value||0), 0).toFixed(0);
-    const clients = rows.slice(0,5).map(r => r.client).join('|');
-    return `${count}::${valSum}::${clients}`;
-  };
-
-  // Agrupa abas pelo fingerprint — duplicados são fallbacks do Google
-  const fpMap = {};
-  allCandidates.forEach(v => {
-    const rows = DATA[v] || [];
-    if (rows.length > 0) {
-      const fp = fingerprint(rows);
-      if (!fpMap[fp]) fpMap[fp] = [];
-      fpMap[fp].push(v);
-    }
-  });
-
-  // Para cada grupo duplicado, mantém apenas o 1º (aba real) e zera os demais
-  Object.values(fpMap).forEach(vendors => {
-    if (vendors.length > 1) {
-      vendors.slice(1).forEach(v => {
-        console.warn(`Aba "${v}" — fallback do Google (dados iguais a "${vendors[0]}") — zerada.`);
-        DATA[v] = [];
-      });
-    }
-  });
-
-  // Filtra apenas abas com dados reais e atualiza C.sh
+  // Com CSV, Google retorna a primeira aba como fallback para abas inexistentes
+  // Única forma confiável: manter lista manual de abas reais
+  // Abas sem dados reais ([] vazio) são filtradas automaticamente
   const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
-  C.sh = activeSheets.length > 0 ? activeSheets : allCandidates;
-  console.log('✅ Abas ativas:', C.sh);
+
+  // Remove fallbacks: se múltiplas abas têm exatamente os mesmos clientes nas primeiras 10 linhas
+  const seen = new Set();
+  const realSheets = activeSheets.filter(v => {
+    const key = (DATA[v]||[]).slice(0,10).map(r=>r.client).join('|');
+    if (seen.has(key)) {
+      console.warn(`Aba "${v}" — fallback do Google — zerada.`);
+      DATA[v] = [];
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  C.sh = realSheets.length > 0 ? realSheets : allCandidates;
+  console.log('✅ Abas ativas:', C.sh.join(', '));
 
   btn.classList.remove('ld');
   document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
