@@ -343,6 +343,7 @@ function parseCSV(txt, vendor) {
   if (iDv >= 0) console.log(`   Ex. diasVenda row1:`, lines[1] ? splitCSV(lines[1])[iDv] : '?');
 
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
+  const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
