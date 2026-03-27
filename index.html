@@ -548,10 +548,20 @@ async function loadData(){
   setLoad(); hideErr();
   DATA = {};
 
-  // fetchSheet nunca rejeita — abas inexistentes retornam []
-  await Promise.all(C.sh.map(async name => {
+  // Lista de todos os vendedores possíveis — carrega apenas os que tiverem dados
+  const allCandidates = C.sh;
+
+  // Carrega todas em paralelo — abas inexistentes retornam []
+  await Promise.all(allCandidates.map(async name => {
     DATA[name] = await fetchSheet(name);
   }));
+
+  // Filtra apenas abas com dados e atualiza C.sh dinamicamente
+  const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
+  if (activeSheets.length > 0) {
+    C.sh = activeSheets;
+    console.log('✅ Abas com dados:', C.sh);
+  }
 
   // Detecta fallback do Google (só ocorre no JSONP — CSV usa URL com nome da aba)
   // Aplica apenas em abas marcadas como carregadas via JSONP
