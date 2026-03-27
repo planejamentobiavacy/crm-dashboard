@@ -293,8 +293,6 @@ function saveSett(){
 let _cbIdx = 0;
 
 async function fetchSheet(name) {
-  // CSV via gviz — lê valores calculados incluindo campos com ";"
-  // Tentamos gviz CSV e export CSV em sequência
   for (const csvUrl of [
     `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
     `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}`,
@@ -306,8 +304,7 @@ async function fetchSheet(name) {
         if (txt && txt.trim().length > 10 && !txt.trim().startsWith('<')) {
           const rows = parseCSV(txt, name);
           if (rows.length > 0) {
-            console.log(`✅ CSV: ${name} — ${rows.length} clientes`);
-            rows._via = 'csv';
+            console.log(`✅ CSV: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
             return rows;
           }
         }
@@ -316,33 +313,8 @@ async function fetchSheet(name) {
       console.warn(`CSV falhou "${name}":`, e.message);
     }
   }
-
-  // JSONP apenas se ambos CSVs falharam
-  console.warn(`⚠️ JSONP "${name}" — DIAS VENDA/CONTATO com ";" não aparecerão`);
-  return new Promise((resolve) => {
-    const cbName = `_gs${_cbIdx++}`;
-    const timer = setTimeout(() => { cleanup(); resolve([]); }, 15000);
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cbName];
-      const el = document.getElementById('_s_' + cbName);
-      if (el) el.remove();
-    }
-    window[cbName] = function(resp) {
-      cleanup();
-      try {
-        const rows = parseGviz(resp, name);
-        rows._via = 'jsonp';
-        resolve(rows);
-      }
-      catch(_) { resolve([]); }
-    };
-    const url = `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(name)}`;
-    const s = document.createElement('script');
-    s.id = '_s_' + cbName;
-    s.src = url;
-    document.head.appendChild(s);
-  });
+  console.warn(`⚠️ Sem dados: "${name}"`);
+  return [];
 }
 
 // ── CSV PARSER ───────────────────────────────────────────
@@ -391,9 +363,10 @@ function parseCSV(txt, vendor) {
       carteira:  get(c, iCa),
       contato:   get(c, iCo),
       motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
-      _rawCols:  c,        // linha raw do CSV para debug
-      _iDv:      iDv,      // índice da coluna DIAS VENDA
-      _iCo:      iCo,      // índice da coluna DIAS CONTATO
+      _via:      'csv',    // confirma que veio do CSV
+      _rawCols:  c,
+      _iDv:      iDv,
+      _iCo:      iCo,
     });
   }
   return rows;
