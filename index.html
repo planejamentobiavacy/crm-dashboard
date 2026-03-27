@@ -386,10 +386,13 @@ function parseCSV(txt, vendor) {
       date:      pDate(dateStr),
       value:     num(get(c, iVl)),
       meta:      num(get(c, iMeta)) * 1000,
-      diasVenda: get(c, iDv),   // CSV retorna valor calculado da fórmula ✅
+      diasVenda: get(c, iDv),
       carteira:  get(c, iCa),
-      contato:   get(c, iCo),   // CSV retorna valor calculado da fórmula ✅
+      contato:   get(c, iCo),
       motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      _rawCols:  c,        // linha raw do CSV para debug
+      _iDv:      iDv,      // índice da coluna DIAS VENDA
+      _iCo:      iCo,      // índice da coluna DIAS CONTATO
     });
   }
   return rows;
@@ -1059,20 +1062,38 @@ function searchClient(){
     return;
   }
 
-  // Mostra TODOS os registros brutos desse cliente
-  res.innerHTML = `<div style="color:#ffb800;font-weight:700;margin-bottom:8px">${found.length} registro(s) encontrado(s) para "${q}":</div>` +
+  res.innerHTML = `<div style="color:#ffb800;font-weight:700;margin-bottom:8px">${found.length} registro(s) para "${q}":</div>` +
     found.map((r,i) => {
-      // Acessa a célula bruta do gviz para ver o valor original
-      const dvRaw = r.diasVenda || '—';
-      const valRaw = r.value;
-      return `<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.04);border-radius:4px;border-left:3px solid ${valRaw>0?'#00e5a0':r.diasVenda?'#ffb800':'#444'}">
-        [${i}] vendor=<b style="color:#3a6fd8">${r.vendor}</b> | client=<b style="color:#fff">${r.client}</b><br>
-        dateRaw=<b style="color:#ccc">"${r.dateRaw}"</b> | date=${r.date?r.date.toISOString().slice(0,16):'null'}<br>
-        value=<b style="color:${valRaw>0?'#00e5a0':'#ff6b6b'}">${valRaw}</b> (raw FAT.MÊS) | 
-        diasVenda=<b style="color:${dvRaw!=='—'&&dvRaw!=='0'?'#00e5a0':'#888'}">"${dvRaw}"</b> (len:${dvRaw.length}) |
-        contato=<b style="color:#ccc">"${r.contato||'—'}"</b> | 
-        carteira=<b style="color:#ccc">"${r.carteira||'—'}"</b><br>
-        motivo=<b style="color:#ccc">"${r.motivo||'—'}"</b> | meta=<b style="color:#3a6fd8">${r.meta}</b>
+      const dvRaw   = r.diasVenda || '—';
+      const coRaw   = r.contato   || '—';
+      const valRaw  = r.value;
+      // Valor bruto direto do CSV (antes do get())
+      const dvCsv   = r._rawCols && r._iDv >= 0 ? (r._rawCols[r._iDv]||'(vazio)') : '(sem raw)';
+      const coCsv   = r._rawCols && r._iCo >= 0 ? (r._rawCols[r._iCo]||'(vazio)') : '(sem raw)';
+      const headers = DATA['__cols__'+r.vendor] || [];
+      return `<div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid ${valRaw>0?'#00e5a0':'#444'}">
+        <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw}<br><br>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+          <div style="background:rgba(0,229,160,.05);padding:8px;border-radius:4px;border:1px solid rgba(0,229,160,.2)">
+            <div style="color:#00e5a0;font-weight:700;margin-bottom:4px">DIAS VENDA</div>
+            <div>Coluna configurada: <b style="color:#fff">"${C.dv}"</b></div>
+            <div>Índice encontrado: <b style="color:${r._iDv>=0?'#00e5a0':'#ff6b6b'}">${r._iDv} ${r._iDv>=0?'✅':'❌ NÃO ENCONTRADO'}</b></div>
+            <div>Header[${r._iDv}]: <b style="color:#fff">"${headers[r._iDv]||'?'}"</b></div>
+            <div>CSV raw: <b style="color:#ffb800">"${dvCsv}"</b></div>
+            <div>Após get(): <b style="color:${dvRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${dvRaw}"</b></div>
+          </div>
+          <div style="background:rgba(58,111,216,.05);padding:8px;border-radius:4px;border:1px solid rgba(58,111,216,.2)">
+            <div style="color:#3a6fd8;font-weight:700;margin-bottom:4px">DIAS CONTATO</div>
+            <div>Coluna configurada: <b style="color:#fff">"${C.co}"</b></div>
+            <div>Índice encontrado: <b style="color:${r._iCo>=0?'#00e5a0':'#ff6b6b'}">${r._iCo} ${r._iCo>=0?'✅':'❌ NÃO ENCONTRADO'}</b></div>
+            <div>Header[${r._iCo}]: <b style="color:#fff">"${headers[r._iCo]||'?'}"</b></div>
+            <div>CSV raw: <b style="color:#ffb800">"${coCsv}"</b></div>
+            <div>Após get(): <b style="color:${coRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${coRaw}"</b></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:#666">
+          Todas as colunas: ${headers.map((h,i)=>`<span style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;margin:1px;display:inline-block">[${i}]${h}</span>`).join('')}
+        </div>
       </div>`;
     }).join('');
 }
