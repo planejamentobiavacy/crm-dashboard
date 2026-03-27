@@ -323,7 +323,38 @@ function parseCSV(txt, vendor) {
   const lines = txt.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
 
-  const headers = splitCSV(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
+  const firstLine = lines[0];
+
+  // Auto-detecta delimitador testando ambos e escolhendo o que gera mais colunas
+  const tryDelim = (d) => {
+    const res = []; let cur = ''; let q = false;
+    for (let i = 0; i < firstLine.length; i++) {
+      const ch = firstLine[i];
+      if (ch === '"') { if (q && firstLine[i+1]==='"') { cur+='"'; i++; } else q=!q; }
+      else if (ch === d && !q) { res.push(cur); cur=''; }
+      else cur += ch;
+    }
+    res.push(cur);
+    return res.length;
+  };
+  const colsComma     = tryDelim(',');
+  const colsSemicolon = tryDelim(';');
+  const delim = colsSemicolon > colsComma ? ';' : ',';
+  console.log(`📋 ${vendor}: delim="${delim}" cols_vírgula=${colsComma} cols_ponto-vírgula=${colsSemicolon}`);
+
+  const splitLine = (line) => {
+    const res = []; let cur = ''; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { if (q && line[i+1]==='"') { cur+='"'; i++; } else q=!q; }
+      else if (ch === delim && !q) { res.push(cur); cur=''; }
+      else cur += ch;
+    }
+    res.push(cur);
+    return res;
+  };
+
+  const headers = splitLine(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
   DATA['__cols__' + vendor] = headers;
 
   const fi = (name) => {
@@ -340,14 +371,14 @@ function parseCSV(txt, vendor) {
   // Debug: mostra colunas e índices no console
   console.log(`📋 ${vendor}:`, headers.join(' | '));
   console.log(`   DIAS VENDA="${C.dv}" → idx:${iDv} | DIAS CONTATO="${C.co}" → idx:${iCo}`);
-  if (iDv >= 0) console.log(`   Ex. diasVenda row1:`, lines[1] ? splitCSV(lines[1])[iDv] : '?');
+  if (iDv >= 0) console.log(`   Ex. diasVenda row1:`, lines[1] ? splitLine(lines[1])[iDv] : '?');
 
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
   const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const c = splitCSV(lines[i]);
+    const c = splitLine(lines[i]);
     const clientRaw = get(c, iCl);
     const dateStr   = get(c, iDt);
     if (!clientRaw && !dateStr) continue;
