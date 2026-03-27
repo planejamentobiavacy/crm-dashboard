@@ -556,42 +556,40 @@ async function loadData(){
     DATA[name] = await fetchSheet(name);
   }));
 
-  // Filtra apenas abas com dados e atualiza C.sh dinamicamente
-  const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
-  if (activeSheets.length > 0) {
-    C.sh = activeSheets;
-    console.log('✅ Abas com dados:', C.sh);
-  }
-
-  // Detecta fallback do Google (só ocorre no JSONP — CSV usa URL com nome da aba)
-  // Aplica apenas em abas marcadas como carregadas via JSONP
+  // Detecta fallback do Google: quando aba não existe, retorna dados da aba padrão
+  // Fingerprint: nº linhas + soma valores + 5 primeiros clientes
   const fingerprint = (rows) => {
-    const count = rows.length;
-    const valSum = rows.reduce((a,r)=>a+(r.value||0),0).toFixed(0);
-    const clients = rows.slice(0,5).map(r=>r.client).join('|');
+    const count   = rows.length;
+    const valSum  = rows.reduce((a,r) => a + (r.value||0), 0).toFixed(0);
+    const clients = rows.slice(0,5).map(r => r.client).join('|');
     return `${count}::${valSum}::${clients}`;
   };
-  // Só aplica fingerprint se múltiplas abas JSONP têm mesmos dados
-  const jsonpSheets = C.sh.filter(v => DATA[v] && DATA[v]._via === 'jsonp');
-  if (jsonpSheets.length > 1) {
-    const fpMap = {};
-    jsonpSheets.forEach(v => {
-      const rows = DATA[v] || [];
-      if (rows.length > 0) {
-        const fp = fingerprint(rows);
-        fpMap[fp] = fpMap[fp] || [];
-        fpMap[fp].push(v);
-      }
-    });
-    Object.values(fpMap).forEach(vendors => {
-      if (vendors.length > 1) {
-        vendors.slice(1).forEach(v => {
-          console.warn(`Aba "${v}" é fallback JSONP — zerada.`);
-          DATA[v] = [];
-        });
-      }
-    });
-  }
+
+  // Agrupa abas pelo fingerprint — duplicados são fallbacks do Google
+  const fpMap = {};
+  allCandidates.forEach(v => {
+    const rows = DATA[v] || [];
+    if (rows.length > 0) {
+      const fp = fingerprint(rows);
+      if (!fpMap[fp]) fpMap[fp] = [];
+      fpMap[fp].push(v);
+    }
+  });
+
+  // Para cada grupo duplicado, mantém apenas o 1º (aba real) e zera os demais
+  Object.values(fpMap).forEach(vendors => {
+    if (vendors.length > 1) {
+      vendors.slice(1).forEach(v => {
+        console.warn(`Aba "${v}" — fallback do Google (dados iguais a "${vendors[0]}") — zerada.`);
+        DATA[v] = [];
+      });
+    }
+  });
+
+  // Filtra apenas abas com dados reais e atualiza C.sh
+  const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
+  C.sh = activeSheets.length > 0 ? activeSheets : allCandidates;
+  console.log('✅ Abas ativas:', C.sh);
 
   btn.classList.remove('ld');
   document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
