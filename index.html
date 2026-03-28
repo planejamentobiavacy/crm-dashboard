@@ -313,30 +313,28 @@ let _cbIdx = 0;
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NAyDq7RO9Y6zTseZm8AScAiSeqB3fhXmkZc9odQbJHFaaDyyrv1dmt/exec';
 let _asIdx = 0;
 
-async function fetchSheet(name) {
-  // Apps Script redireciona para googleusercontent.com que tem CORS headers
-  // Usar fetch com redirect:follow funciona quando a resposta final tem Access-Control-Allow-Origin
+// Carrega TODOS os vendedores de uma vez via action=export
+async function loadAllFromAppsScript() {
   try {
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const url = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
+    const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(30000) });
     if (r.ok) {
       const txt = await r.text();
-      // Remove possível prefixo JSONP se presente
-      const clean = txt.replace(/^[^{[]*/, '').replace(/[^}\]]*$/, '');
-      const data = JSON.parse(clean || txt);
-      if (data && data.rows && data.rows.length > 0) {
-        const rows = parseAppsScript(data, name);
-        console.log(`✅ ${name} — ${rows.length} clientes`);
-        return rows;
+      const data = JSON.parse(txt);
+      if (data && data.status === 'ok' && data.vendedores) {
+        console.log(`✅ Export: ${Object.keys(data.vendedores).length} vendedores carregados`);
+        return data.vendedores; // { ADRIANO: [{...}], ALEX: [{...}], ... }
       }
-      console.log(`📭 "${name}": ${data?.error || 'vazio'}`);
-      return [];
     }
   } catch(e) {
-    console.warn(`❌ "${name}":`, e.message);
+    console.warn('❌ Export falhou:', e.message);
   }
+  return null;
+}
 
-  // Fallback JSONP com script tag
+async function fetchSheet(name) {
+  // fetchSheet individual — usado como fallback se loadAllFromAppsScript falhar
+  // Tenta JSONP como último recurso
   return new Promise((resolve) => {
     const cbName = `_as${_asIdx++}`;
     const timer = setTimeout(() => { cleanup(); resolve([]); }, 15000);
@@ -347,11 +345,7 @@ async function fetchSheet(name) {
     }
     window[cbName] = (data) => {
       cleanup();
-      if (data?.rows?.length > 0) {
-        resolve(parseAppsScript(data, name));
-      } else {
-        resolve([]);
-      }
+      resolve(data?.rows?.length > 0 ? parseAppsScript(data, name) : []);
     };
     const s = document.createElement('script');
     s.id = '_as_' + cbName;
@@ -679,13 +673,32 @@ async function loadData(){
   setLoad(); hideErr();
   DATA = {};
 
-  // Lista de todos os vendedores possíveis — carrega apenas os que tiverem dados
   const allCandidates = C.sh;
 
-  // Carrega todas em paralelo — abas inexistentes retornam []
-  await Promise.all(allCandidates.map(async name => {
-    DATA[name] = await fetchSheet(name);
-  }));
+  // Tenta carregar todos de uma vez via action=export (mais eficiente, sem redirect issues)
+  const exportData = await loadAllFromAppsScript();
+
+  if (exportData) {
+    // Usa dados do export — converte formato do export para o formato padrão
+    allCandidates.forEach(name => {
+      const vendorRows = exportData[name];
+      if (vendorRows && vendorRows.length > 0) {
+        // O export já retorna objetos com chaves = nomes das colunas
+        const headers = Object.keys(vendorRows[0]);
+        DATA['__cols__' + name] = headers;
+        DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
+        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes`);
+      } else {
+        DATA[name] = [];
+      }
+    });
+  } else {
+    // Fallback: carrega individualmente via JSONP
+    console.warn('Export falhou — carregando individualmente via JSONP');
+    await Promise.all(allCandidates.map(async name => {
+      DATA[name] = await fetchSheet(name);
+    }));
+  }
 
   // Filtra abas com dados
   // Remove fallbacks: Google retorna outra aba quando a pedida não existe
