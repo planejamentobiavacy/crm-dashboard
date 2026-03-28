@@ -912,13 +912,11 @@ function render(){
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
   // ── % META POSITIVAÇÃO
-  // META POSIT. se repete em todas as linhas → média = o próprio valor (ex: 90)
-  // POSIT. MÊS = contagem distinta de clientes com FAT.MÊS > 0 = cntPos
-  const metaPosValues = rowsFinanceiro.map(r => r.metaPos || 0).filter(v => v > 0);
-  const avgMetaPos = metaPosValues.length > 0
-    ? metaPosValues.reduce((a,b) => a+b, 0) / metaPosValues.length
-    : 0;
-  const pctPos = avgMetaPos > 0 ? Math.round((cntPos / avgMetaPos) * 100) : null;
+  // META POSIT. = máximo da coluna (valor repetido, pegar o maior)
+  // POSIT. MÊS  = soma da coluna (acumulado, pegar da data mais recente por cliente)
+  const maxMetaPos = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
+  const sumPositMes = rowsFinanceiro.reduce((a, r) => a + (r.positMes || 0), 0);
+  const pctPos = maxMetaPos > 0 ? Math.round((sumPositMes / maxMetaPos) * 100) : null;
   const kpis=[
     {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
     {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
