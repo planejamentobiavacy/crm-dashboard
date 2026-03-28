@@ -318,8 +318,8 @@ async function fetchSheet(name) {
     const cbName = `_as${_asIdx++}`;
     const timer = setTimeout(() => {
       cleanup();
-      console.warn(`⏱️ AppsScript timeout "${name}" — tentando CSV`);
-      fetchSheetCSV(name).then(resolve);
+      console.warn(`⏱️ AppsScript timeout "${name}" — retornando vazio`);
+      resolve([]);
     }, 15000);
 
     function cleanup() {
@@ -331,18 +331,19 @@ async function fetchSheet(name) {
 
     window[cbName] = function(data) {
       cleanup();
-      if (data && data.error) {
-        // Apps Script retornou erro (aba não existe) — tenta CSV
-        console.warn(`⚠️ AppsScript "${name}": ${data.error} — tentando CSV`);
-        fetchSheetCSV(name).then(resolve);
-      } else if (data && data.rows && data.rows.length > 0) {
+      if (data && data.rows && data.rows.length > 0) {
         // Aba existe e tem dados
         const rows = parseAppsScript(data, name);
         console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
         resolve(rows);
       } else {
-        // Aba existe mas está vazia — retorna [] sem tentar CSV
-        console.log(`📭 AppsScript: "${name}" — aba vazia.`);
+        // Aba vazia, não encontrada, ou erro — retorna [] sem tentar CSV
+        // Isso evita o fallback CSV que retorna 1 linha de lixo
+        if (data && data.error) {
+          console.log(`📭 AppsScript: "${name}" — ${data.error}`);
+        } else {
+          console.log(`📭 AppsScript: "${name}" — aba vazia.`);
+        }
         resolve([]);
       }
     };
@@ -353,8 +354,8 @@ async function fetchSheet(name) {
     s.src = url;
     s.onerror = () => {
       cleanup();
-      console.warn(`❌ AppsScript erro "${name}" — tentando CSV`);
-      fetchSheetCSV(name).then(resolve);
+      console.warn(`❌ AppsScript erro de carregamento "${name}" — retornando vazio`);
+      resolve([]);
     };
     document.head.appendChild(s);
   });
@@ -893,8 +894,12 @@ function render(){
   mc.innerHTML='';mc.className='fin';
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
-  const totMetaPos = rowsFinanceiro.reduce((a,r) => a + (r.metaPos || 0), 0);
-  const pctPos = totMetaPos > 0 ? Math.round((cntPos / totMetaPos) * 100) : null;
+  // META POSIT. se repete em todas as linhas → usar média (= o próprio valor)
+  const metaPosValues = rowsFinanceiro.map(r => r.metaPos || 0).filter(v => v > 0);
+  const avgMetaPos = metaPosValues.length > 0
+    ? metaPosValues.reduce((a,b) => a+b, 0) / metaPosValues.length
+    : 0;
+  const pctPos = avgMetaPos > 0 ? Math.round((cntPos / avgMetaPos) * 100) : null;
   const kpis=[
     {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
     {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
