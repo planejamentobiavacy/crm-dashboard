@@ -197,7 +197,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="sett" id="sett">
   <div class="sett-g">
     <div class="fl"><label>ID da Planilha</label><input id="s-id" value="1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA"></div>
-    <div class="fl"><label>Abas dos Vendedores (vírgula)</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATEUS, NOA, RAFAEL, ROSANE, THAIS, WESLEY"></div>
+    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, DENIS, MARCELO, NOA"></div>
     <div class="fl"><label>Col. Grupo Comercial</label><input id="s-cl" value="GRUPO COMERCIAL"></div>
     <div class="fl"><label>Col. Data Envio</label><input id="s-dt" value="DATA ENVIO"></div>
     <div class="fl"><label>Col. Fat. Mês</label><input id="s-vl" value="FAT. MÊS"></div>
@@ -246,7 +246,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 // ── CONFIG ──────────────────────────────────────────
 const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
-  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY'],
+  sh:  ['ADRIANO','ALEX','DENIS','MARCELO','NOA'],
   cl:  'GRUPO COMERCIAL',
   dt:  'DATA ENVIO',
   vl:  'FAT. MÊS',
@@ -556,25 +556,9 @@ async function loadData(){
     DATA[name] = await fetchSheet(name);
   }));
 
-  // Com CSV, Google retorna a primeira aba como fallback para abas inexistentes
-  // Única forma confiável: manter lista manual de abas reais
-  // Abas sem dados reais ([] vazio) são filtradas automaticamente
+  // Filtra abas com dados e atualiza C.sh
   const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
-
-  // Remove fallbacks: se múltiplas abas têm exatamente os mesmos clientes nas primeiras 10 linhas
-  const seen = new Set();
-  const realSheets = activeSheets.filter(v => {
-    const key = (DATA[v]||[]).slice(0,10).map(r=>r.client).join('|');
-    if (seen.has(key)) {
-      console.warn(`Aba "${v}" — fallback do Google — zerada.`);
-      DATA[v] = [];
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-
-  C.sh = realSheets.length > 0 ? realSheets : allCandidates;
+  C.sh = activeSheets.length > 0 ? activeSheets : allCandidates;
   console.log('✅ Abas ativas:', C.sh.join(', '));
 
   btn.classList.remove('ld');
