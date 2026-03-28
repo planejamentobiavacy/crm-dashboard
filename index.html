@@ -265,6 +265,7 @@ const C = {
   mo2: 'MOTIVO',
   meta:'META FAT.',       // coluna de meta de faturamento
   metaPos: 'META POSIT.', // coluna de meta de positivação
+  positMes: 'POSIT. MÊS', // coluna de positivados acumulados no mês
   dv:  'DIAS VENDA',     // coluna de dias venda (positivados no gráfico)
 };
 
@@ -396,7 +397,7 @@ function parseAppsScript(json, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
   console.log(`   ${vendor}: DIAS VENDA idx:${iDv} | DIAS CONTATO idx:${iCo}`);
 
@@ -425,6 +426,7 @@ function parseAppsScript(json, vendor) {
       value:     iVl   >= 0 ? num(get(row, headers[iVl]))   : 0,
       meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) * 1000 : 0,
       metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
+      positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
       carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
       contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
@@ -487,7 +489,7 @@ function parseCSV(txt, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
   // Debug: mostra colunas e índices no console
   console.log(`📋 ${vendor}:`, headers.join(' | '));
@@ -514,6 +516,7 @@ function parseCSV(txt, vendor) {
       value:      num(get(c, iVl)),
       meta:       num(get(c, iMeta)) * 1000,
       metaPos:    num(get(c, iMetaPos)),
+      positMes:   num(get(c, iPositMes)),
       diasVenda:  get(c, iDv),
       carteira:   get(c, iCa),
       contato:    get(c, iCo),
@@ -556,7 +559,7 @@ function parseGviz(resp, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
   // Helpers para ler células gviz
   const gStr = (row, i) => {
@@ -632,6 +635,7 @@ function parseGviz(resp, vendor) {
       value:      gNum(row, iVl),
       meta:       gNum(row, iMeta) * 1000,
       metaPos:    gNum(row, iMetaPos),
+      positMes:   gNum(row, iPositMes),
       diasVenda:  gStrFull(row, iDv),
       carteira:   gStr(row, iCa),
       contato:    gStrFull(row, iCo),
@@ -907,7 +911,9 @@ function render(){
   mc.innerHTML='';mc.className='fin';
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
-  // META POSIT. se repete em todas as linhas → usar média (= o próprio valor)
+  // ── % META POSITIVAÇÃO
+  // META POSIT. se repete em todas as linhas → média = o próprio valor (ex: 90)
+  // POSIT. MÊS = contagem distinta de clientes com FAT.MÊS > 0 = cntPos
   const metaPosValues = rowsFinanceiro.map(r => r.metaPos || 0).filter(v => v > 0);
   const avgMetaPos = metaPosValues.length > 0
     ? metaPosValues.reduce((a,b) => a+b, 0) / metaPosValues.length
