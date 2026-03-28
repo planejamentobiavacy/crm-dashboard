@@ -426,7 +426,7 @@ function parseAppsScript(json, vendor) {
       dateRaw:   dateStr,
       date:      pDate(dateStr),
       value:     iVl   >= 0 ? num(get(row, headers[iVl]))   : 0,
-      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) * 1000 : 0,
+      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) : 0,
       metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
       positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
@@ -917,7 +917,8 @@ function render(){
 
   // ── POSIT. MÊS: soma da coluna (acumulado) | META POSIT.: máximo da coluna
   const maxMetaPos  = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
-  const sumPositMes = rowsFinanceiro.reduce((a, r) => a + (r.positMes || 0), 0);
+  // POSIT. MÊS é acumulado e se repete — usar o máximo (= valor mais recente)
+  const sumPositMes = rowsFinanceiro.reduce((max, r) => Math.max(max, r.positMes || 0), 0);
   const pctPos = maxMetaPos > 0 ? Math.round((sumPositMes / maxMetaPos) * 100) : null;
 
   const kpis=[
