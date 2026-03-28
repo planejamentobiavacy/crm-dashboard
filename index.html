@@ -314,39 +314,49 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NA
 let _asIdx = 0;
 
 async function fetchSheet(name) {
+  // Apps Script redireciona para googleusercontent.com que tem CORS headers
+  // Usar fetch com redirect:follow funciona quando a resposta final tem Access-Control-Allow-Origin
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    if (r.ok) {
+      const txt = await r.text();
+      // Remove possível prefixo JSONP se presente
+      const clean = txt.replace(/^[^{[]*/, '').replace(/[^}\]]*$/, '');
+      const data = JSON.parse(clean || txt);
+      if (data && data.rows && data.rows.length > 0) {
+        const rows = parseAppsScript(data, name);
+        console.log(`✅ ${name} — ${rows.length} clientes`);
+        return rows;
+      }
+      console.log(`📭 "${name}": ${data?.error || 'vazio'}`);
+      return [];
+    }
+  } catch(e) {
+    console.warn(`❌ "${name}":`, e.message);
+  }
+
+  // Fallback JSONP com script tag
   return new Promise((resolve) => {
     const cbName = `_as${_asIdx++}`;
-
-    const timer = setTimeout(() => {
-      cleanup();
-      console.warn(`⏱️ Timeout "${name}" — vazio`);
-      resolve([]);
-    }, 15000);
-
+    const timer = setTimeout(() => { cleanup(); resolve([]); }, 15000);
     function cleanup() {
       clearTimeout(timer);
       delete window[cbName];
-      const el = document.getElementById('_as_' + cbName);
-      if (el) el.remove();
+      document.getElementById('_as_'+cbName)?.remove();
     }
-
-    window[cbName] = function(data) {
+    window[cbName] = (data) => {
       cleanup();
-      if (data && data.rows && data.rows.length > 0) {
-        const rows = parseAppsScript(data, name);
-        console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
-        resolve(rows);
+      if (data?.rows?.length > 0) {
+        resolve(parseAppsScript(data, name));
       } else {
-        console.log(`📭 "${name}": ${data && data.error ? data.error : 'vazio'}`);
         resolve([]);
       }
     };
-
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
     const s = document.createElement('script');
     s.id = '_as_' + cbName;
-    s.src = url;
-    s.onerror = () => { cleanup(); console.warn(`❌ "${name}" — erro script`); resolve([]); };
+    s.src = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
+    s.onerror = () => { cleanup(); resolve([]); };
     document.head.appendChild(s);
   });
 }
