@@ -334,26 +334,23 @@ async function loadAllFromAppsScript() {
 }
 
 async function fetchSheet(name) {
-  // fetchSheet individual — usado como fallback se loadAllFromAppsScript falhar
-  // Tenta JSONP como último recurso
-  return new Promise((resolve) => {
-    const cbName = `_as${_asIdx++}`;
-    const timer = setTimeout(() => { cleanup(); resolve([]); }, 15000);
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cbName];
-      document.getElementById('_as_'+cbName)?.remove();
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    if (r.ok) {
+      const data = await r.json();
+      if (data?.rows?.length > 0) {
+        const rows = parseAppsScript(data, name);
+        console.log(`✅ ${name} — ${rows.length} clientes | POSIT.MÊS ex: ${rows[0]?.positMes} | META POSIT. ex: ${rows[0]?.metaPos}`);
+        return rows;
+      }
+      console.log(`📭 "${name}": ${data?.error || 'vazio'}`);
+      return [];
     }
-    window[cbName] = (data) => {
-      cleanup();
-      resolve(data?.rows?.length > 0 ? parseAppsScript(data, name) : []);
-    };
-    const s = document.createElement('script');
-    s.id = '_as_' + cbName;
-    s.src = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
-    s.onerror = () => { cleanup(); resolve([]); };
-    document.head.appendChild(s);
-  });
+  } catch(e) {
+    console.warn(`❌ "${name}":`, e.message);
+  }
+  return [];
 }
 
 async function fetchSheetCSV(name) {
@@ -683,19 +680,12 @@ async function loadData(){
   const exportData = await loadAllFromAppsScript();
 
   if (exportData) {
-    // Usa dados do export — converte formato do export para o formato padrão
-    allCandidates.forEach(name => {
-      const vendorRows = exportData[name];
-      if (vendorRows && vendorRows.length > 0) {
-        // O export já retorna objetos com chaves = nomes das colunas
-        const headers = Object.keys(vendorRows[0]);
-        DATA['__cols__' + name] = headers;
-        DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
-        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes`);
-      } else {
-        DATA[name] = [];
-      }
-    });
+    // Export retorna dados mas usa getValues() — não preserva DIAS VENDA corretamente
+    // Usa apenas para identificar quais abas têm dados, depois recarrega via getSheetData
+    console.log('Export OK — recarregando via getSheetData para dados corretos');
+    await Promise.all(allCandidates.map(async name => {
+      DATA[name] = await fetchSheet(name);
+    }));
   } else {
     // Fallback: carrega individualmente via JSONP
     console.warn('Export falhou — carregando individualmente via JSONP');
