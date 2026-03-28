@@ -293,31 +293,51 @@ function saveSett(){
 let _cbIdx = 0;
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NAyDq7RO9Y6zTseZm8AScAiSeqB3fhXmkZc9odQbJHFaaDyyrv1dmt/exec';
+let _asIdx = 0;
 
 async function fetchSheet(name) {
-  // Apps Script — lê valores calculados de fórmulas corretamente
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-    console.log(`🔄 AppsScript chamando: ${name}`);
-    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    console.log(`📡 AppsScript resposta ${name}: status=${r.status} ok=${r.ok}`);
-    if (r.ok) {
-      const txt = await r.text();
-      console.log(`📄 AppsScript texto ${name} (primeiros 200):`, txt.slice(0,200));
-      const json = JSON.parse(txt);
-      if (json.rows && json.rows.length > 0) {
-        const rows = parseAppsScript(json, name);
-        console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
-        return rows;
-      } else {
-        console.warn(`⚠️ AppsScript ${name}: json.rows vazio ou ausente`, json);
-      }
-    }
-  } catch(e) {
-    console.warn(`❌ AppsScript falhou "${name}":`, e.message, e);
-  }
+  // Apps Script via JSONP — sem CORS, lê fórmulas corretamente
+  return new Promise((resolve) => {
+    const cbName = `_as${_asIdx++}`;
+    const timer = setTimeout(() => {
+      cleanup();
+      console.warn(`⏱️ AppsScript timeout "${name}" — tentando CSV`);
+      fetchSheetCSV(name).then(resolve);
+    }, 15000);
 
-  // Fallback CSV
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      const el = document.getElementById('_as_' + cbName);
+      if (el) el.remove();
+    }
+
+    window[cbName] = function(data) {
+      cleanup();
+      if (data && data.rows && data.rows.length > 0) {
+        const rows = parseAppsScript(data, name);
+        console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
+        resolve(rows);
+      } else {
+        console.warn(`⚠️ AppsScript "${name}" vazio — tentando CSV`);
+        fetchSheetCSV(name).then(resolve);
+      }
+    };
+
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
+    const s = document.createElement('script');
+    s.id = '_as_' + cbName;
+    s.src = url;
+    s.onerror = () => {
+      cleanup();
+      console.warn(`❌ AppsScript erro "${name}" — tentando CSV`);
+      fetchSheetCSV(name).then(resolve);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+async function fetchSheetCSV(name) {
   for (const csvUrl of [
     `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`,
     `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`,
@@ -338,7 +358,6 @@ async function fetchSheet(name) {
       console.warn(`CSV falhou "${name}":`, e.message);
     }
   }
-  console.warn(`⚠️ Sem dados: "${name}"`);
   return [];
 }
 
