@@ -691,8 +691,10 @@ async function loadData(){
       if (vendorRows && vendorRows.length > 0) {
         const headers = Object.keys(vendorRows[0]);
         DATA['__cols__' + name] = headers;
+        console.log(`📋 ${name} headers:`, headers.join(' | '));
+        if (vendorRows[0]) console.log(`   META FAT.="${vendorRows[0]['META FAT.']||'?'}" | META POSIT.="${vendorRows[0]['META POSIT.']||'?'}" | POSIT. MÊS="${vendorRows[0]['POSIT. MÊS']||'?'}"`);
         DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
-        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes`);
+        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes | meta=${DATA[name][0]?.meta} metaPos=${DATA[name][0]?.metaPos} positMes=${DATA[name][0]?.positMes}`);
       } else {
         DATA[name] = [];
       }
