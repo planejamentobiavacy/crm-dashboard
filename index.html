@@ -396,7 +396,12 @@ function parseAppsScript(json, vendor) {
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
-  console.log(`   ${vendor}: DIAS VENDA idx:${iDv} | DIAS CONTATO idx:${iCo}`);
+  console.log(`📊 ${vendor} headers[${headers.length}]:`, headers.join(' | '));
+  console.log(`   META FAT.[${iMeta}] META POSIT.[${iMetaPos}] POSIT.MÊS[${iPositMes}] FAT.MÊS[${iVl}]`);
+  if (rows[0]) {
+    const get0 = (i) => i >= 0 ? (rows[0][headers[i]]||'?') : '—';
+    console.log(`   ex row[0]: META FAT.="${get0(iMeta)}" META POSIT.="${get0(iMetaPos)}" POSIT.MÊS="${get0(iPositMes)}" FAT.MÊS="${get0(iVl)}"`);
+  }
 
   const get = (row, key) => key ? (row[key] || '').trim() : '';
   const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
