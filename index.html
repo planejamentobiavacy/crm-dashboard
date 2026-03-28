@@ -912,13 +912,14 @@ function render(){
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
   // ── % META POSITIVAÇÃO
   // ── META FAT.: se repete em todas as linhas → usar máximo
-  const maxMetaFat = rowsFinanceiro.reduce((max, r) => Math.max(max, r.meta || 0), 0);
+  // META FAT. varia por dia — soma de todos os dias = meta total do vendedor
+  const maxMetaFat = rowsFinanceiro.reduce((a, r) => a + (r.meta || 0), 0);
   const ating = maxMetaFat > 0 ? Math.round((totVal / maxMetaFat) * 100) : null;
 
   // ── POSIT. MÊS: soma da coluna (acumulado) | META POSIT.: máximo da coluna
   const maxMetaPos  = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
-  // POSIT. MÊS é acumulado e se repete — usar o máximo (= valor mais recente)
-  const sumPositMes = rowsFinanceiro.reduce((max, r) => Math.max(max, r.positMes || 0), 0);
+  // POSIT. MÊS varia por dia — soma = total do mês
+  const sumPositMes = rowsFinanceiro.reduce((a, r) => a + (r.positMes || 0), 0);
   const pctPos = maxMetaPos > 0 ? Math.round((sumPositMes / maxMetaPos) * 100) : null;
 
   const kpis=[
