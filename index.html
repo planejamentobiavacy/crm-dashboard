@@ -405,6 +405,12 @@ function parseAppsScript(json, vendor) {
   const get = (row, key) => key ? (row[key] || '').trim() : '';
   const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 
+  // Log primeiras 3 linhas de DIAS VENDA para debug
+  if (iDv >= 0) {
+    const samples = rows.slice(0,3).map(r => `"${r[headers[iDv]] ?? '(null)'}"`).join(', ');
+    console.log(`   ${vendor} DIAS VENDA amostras:`, samples);
+  }
+
   const result = [];
   for (const row of rows) {
     const clientRaw = iCl >= 0 ? get(row, headers[iCl]) : '';
@@ -1193,35 +1199,37 @@ function searchClient(){
 
   res.innerHTML = `<div style="color:#ffb800;font-weight:700;margin-bottom:8px">${found.length} registro(s) para "${q}":</div>` +
     found.map((r,i) => {
-      const dvRaw   = r.diasVenda || '—';
-      const coRaw   = r.contato   || '—';
-      const valRaw  = r.value;
-      // Valor bruto direto do CSV (antes do get())
-      const dvCsv   = r._rawCols && r._iDv >= 0 ? (r._rawCols[r._iDv]||'(vazio)') : '(sem raw)';
-      const coCsv   = r._rawCols && r._iCo >= 0 ? (r._rawCols[r._iCo]||'(vazio)') : '(sem raw)';
+      const dvRaw  = r.diasVenda || '—';
+      const coRaw  = r.contato   || '—';
+      const valRaw = r.value;
       const headers = DATA['__cols__'+r.vendor] || [];
+      const dvKey  = r._iDv >= 0 ? (headers[r._iDv]||'?') : '?';
+      const coKey  = r._iCo >= 0 ? (headers[r._iCo]||'?') : '?';
+      // Valor raw direto do _rawCols (array de strings do Apps Script)
+      const dvRawCol = r._rawCols && r._iDv >= 0 ? (r._rawCols[r._iDv]||'(vazio)') : '(sem raw)';
+      const coRawCol = r._rawCols && r._iCo >= 0 ? (r._rawCols[r._iCo]||'(vazio)') : '(sem raw)';
+      const via = r._via || '?';
       return `<div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid ${valRaw>0?'#00e5a0':'#444'}">
-        <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw} — <span style="color:${(DATA[r.vendor]||[])._via==='csv'?'#00e5a0':'#ffb800'};font-weight:700">via: ${(DATA[r.vendor]||[])._via||'?'}</span><br><br>
+        <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw}
+        — <span style="color:${via==='apps-script'?'#00e5a0':via==='csv'?'#ffb800':'#ff6b6b'};font-weight:700">via: ${via}</span><br><br>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
           <div style="background:rgba(0,229,160,.05);padding:8px;border-radius:4px;border:1px solid rgba(0,229,160,.2)">
             <div style="color:#00e5a0;font-weight:700;margin-bottom:4px">DIAS VENDA</div>
-            <div>Coluna configurada: <b style="color:#fff">"${C.dv}"</b></div>
-            <div>Índice encontrado: <b style="color:${r._iDv>=0?'#00e5a0':'#ff6b6b'}">${r._iDv} ${r._iDv>=0?'✅':'❌ NÃO ENCONTRADO'}</b></div>
-            <div>Header[${r._iDv}]: <b style="color:#fff">"${headers[r._iDv]||'?'}"</b></div>
-            <div>CSV raw: <b style="color:#ffb800">"${dvCsv}"</b></div>
-            <div>Após get(): <b style="color:${dvRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${dvRaw}"</b></div>
+            <div>Coluna config: <b style="color:#fff">"${C.dv}"</b></div>
+            <div>Idx: <b style="color:${r._iDv>=0?'#00e5a0':'#ff6b6b'}">${r._iDv} — header: "${dvKey}"</b></div>
+            <div>Raw (AppsScript): <b style="color:#ffb800">"${dvRawCol}"</b></div>
+            <div>Após parse: <b style="color:${dvRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${dvRaw}"</b></div>
           </div>
           <div style="background:rgba(58,111,216,.05);padding:8px;border-radius:4px;border:1px solid rgba(58,111,216,.2)">
             <div style="color:#3a6fd8;font-weight:700;margin-bottom:4px">DIAS CONTATO</div>
-            <div>Coluna configurada: <b style="color:#fff">"${C.co}"</b></div>
-            <div>Índice encontrado: <b style="color:${r._iCo>=0?'#00e5a0':'#ff6b6b'}">${r._iCo} ${r._iCo>=0?'✅':'❌ NÃO ENCONTRADO'}</b></div>
-            <div>Header[${r._iCo}]: <b style="color:#fff">"${headers[r._iCo]||'?'}"</b></div>
-            <div>CSV raw: <b style="color:#ffb800">"${coCsv}"</b></div>
-            <div>Após get(): <b style="color:${coRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${coRaw}"</b></div>
+            <div>Coluna config: <b style="color:#fff">"${C.co}"</b></div>
+            <div>Idx: <b style="color:${r._iCo>=0?'#00e5a0':'#ff6b6b'}">${r._iCo} — header: "${coKey}"</b></div>
+            <div>Raw (AppsScript): <b style="color:#ffb800">"${coRawCol}"</b></div>
+            <div>Após parse: <b style="color:${coRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${coRaw}"</b></div>
           </div>
         </div>
         <div style="margin-top:8px;font-size:10px;color:#666">
-          Todas as colunas: ${headers.map((h,i)=>`<span style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;margin:1px;display:inline-block">[${i}]${h}</span>`).join('')}
+          Colunas: ${headers.map((h,idx)=>`<span style="background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;margin:1px;display:inline-block">[${idx}]${h}</span>`).join('')}
         </div>
       </div>`;
     }).join('');
