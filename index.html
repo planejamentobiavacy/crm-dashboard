@@ -556,9 +556,34 @@ async function loadData(){
     DATA[name] = await fetchSheet(name);
   }));
 
-  // Filtra abas com dados e atualiza C.sh
+  // Filtra abas com dados
+  // Remove fallbacks: Google retorna outra aba quando a pedida não existe
+  // Detecta pelo número exato de clientes — abas reais têm contagens únicas
+  const countMap = {};
+  allCandidates.forEach(v => {
+    const n = (DATA[v]||[]).length;
+    if (n > 0) {
+      if (!countMap[n]) countMap[n] = [];
+      countMap[n].push(v);
+    }
+  });
+
+  // Se múltiplas abas têm exatamente o mesmo nº de clientes, mantém só a que
+  // está na lista sh original (C.sh) — as outras são fallback
+  const shOriginal = ['ADRIANO','ALEX','DENIS','MARCELO','NOA'];
+  Object.values(countMap).forEach(vendors => {
+    if (vendors.length > 1) {
+      // Prefere o que está na lista original; se empate, mantém o último
+      const real = vendors.filter(v => shOriginal.includes(v));
+      const fake = vendors.filter(v => !shOriginal.includes(v));
+      // Se há um real e vários falsos, zera os falsos
+      fake.forEach(v => { DATA[v] = []; console.warn(`"${v}" zerado (fallback)`); });
+      // Se há múltiplos reais com mesmo nº, mantém todos (podem ter dados diferentes)
+    }
+  });
+
   const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
-  C.sh = activeSheets.length > 0 ? activeSheets : allCandidates;
+  C.sh = activeSheets.length > 0 ? activeSheets : shOriginal;
   console.log('✅ Abas ativas:', C.sh.join(', '));
 
   btn.classList.remove('ld');
