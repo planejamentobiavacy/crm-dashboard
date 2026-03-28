@@ -220,7 +220,13 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 </div>
 
 
-<div class="tabs" id="tabs"></div>
+<div class="tabs" style="display:flex;align-items:center;gap:0">
+  <div id="tab-all" class="vtab active" onclick="setGroup('all');document.querySelectorAll('.vtab').forEach(v=>v.classList.remove('active'));this.classList.add('active')">🌐 Todos</div>
+  <div id="btn-farmer" class="vtab" onclick="setGroup('farmer')" style="color:#b87a00">🌾 Farmer</div>
+  <div id="btn-developer" class="vtab" onclick="setGroup('developer')" style="color:#1a3a8c">💻 Developer</div>
+  <div style="width:1px;height:24px;background:rgba(0,0,0,.12);margin:0 4px"></div>
+  <div id="tabs" style="display:flex;overflow-x:auto"></div>
+</div>
 
 <!-- DATE BAR -->
 <div class="dbar" id="dbar" style="display:none">
@@ -266,9 +272,17 @@ const STAGES = [
 ];
 
 // ── STATE ────────────────────────────────────────────
-let DATA = {}, ACTIVE = 'all', PERIOD = 'all';
+let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all';
 let D_FROM = null, D_TO = null, CH = null;
 let _rows = [];
+
+const DEVELOPER_VENDORS = ['ALINE','CINTIA','KEULLY'];
+const getFarmerVendors  = () => C.sh.filter(v => !DEVELOPER_VENDORS.includes(v));
+const getGroupVendors   = () => {
+  if (GROUP === 'developer') return C.sh.filter(v => DEVELOPER_VENDORS.includes(v));
+  if (GROUP === 'farmer')    return getFarmerVendors();
+  return C.sh;
+};
 
 // ── BOOT ─────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', loadData);
@@ -735,13 +749,19 @@ function fltPeriod(rows){
 
 // ── TABS ──────────────────────────────────────────────
 function buildTabs(){
-  const w=document.getElementById('tabs');w.innerHTML='';
-  const sorted = [...C.sh].sort((a,b)=>a.localeCompare(b));
-  [{ k:'all',l:'🌐 Todos' },...sorted.map(s=>({k:s,l:s}))].forEach(t=>{
-    const el=document.createElement('div');
-    el.className='vtab'+(t.k===ACTIVE?' active':'');
-    el.textContent=t.l;
-    el.onclick=()=>{ACTIVE=t.k;document.querySelectorAll('.vtab').forEach(v=>v.classList.remove('active'));el.classList.add('active');render();};
+  const w = document.getElementById('tabs'); w.innerHTML = '';
+  const groupVendors = getGroupVendors().filter(v => (DATA[v]||[]).length > 0);
+  const sorted = [...groupVendors].sort((a,b) => a.localeCompare(b));
+  sorted.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'vtab' + (s === ACTIVE ? ' active' : '');
+    el.textContent = s;
+    el.onclick = () => {
+      ACTIVE = s;
+      document.querySelectorAll('.vtab').forEach(v => v.classList.remove('active'));
+      el.classList.add('active');
+      render();
+    };
     w.appendChild(el);
   });
 }
@@ -771,10 +791,9 @@ function dedup(rows){
 
 // ── RENDER ────────────────────────────────────────────
 function render(){
-  // Todos os dados brutos — exclui chaves internas __cols__
   const getRaw = (vendor) => (DATA[vendor] || []).map(r => ({...r, vendor}));
   const allRaw = ACTIVE==='all'
-    ? C.sh.flatMap(v => getRaw(v))
+    ? getGroupVendors().flatMap(v => getRaw(v))
     : getRaw(ACTIVE);
 
   // ── Deduplica por (vendor + cliente) mantendo data mais recente — para KPIs de contagem
@@ -832,7 +851,7 @@ function render(){
 
   // ── Vendor stats
   const vs = {};
-  C.sh.forEach(v => {
+  getGroupVendors().forEach(v => {
     const vd    = fltPeriod(dedup(getRaw(v)));
     const vdFin = dedupGlobalFn(vd);
     vs[v] = {
@@ -1210,6 +1229,19 @@ function searchClient(){
 
 // ── HELPERS ──────────────────────────────────────────
 function swV(v){ACTIVE=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===v));render();}
+function setGroup(g){
+  GROUP = GROUP === g ? 'all' : g;
+  ACTIVE = 'all';
+  // Visual dos botões de grupo
+  const isF = GROUP === 'farmer', isD = GROUP === 'developer', isA = GROUP === 'all';
+  document.getElementById('btn-farmer').style.borderBottomColor    = isF ? '#b87a00' : 'transparent';
+  document.getElementById('btn-farmer').style.color                = isF ? '#b87a00' : '#b87a00';
+  document.getElementById('btn-farmer').classList.toggle('active', isF);
+  document.getElementById('btn-developer').style.borderBottomColor = isD ? '#1a3a8c' : 'transparent';
+  document.getElementById('btn-developer').classList.toggle('active', isD);
+  document.getElementById('tab-all').classList.toggle('active', isA);
+  buildTabs(); render();
+}
 function fBRL(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);}
 function setLoad(){document.getElementById('mc').innerHTML=`<div class="st-box"><div class="spin"></div><p>Carregando dados da planilha…</p></div>`;}
 function showErr(m){const e=document.getElementById('err');e.innerHTML=m+'<br><small style="font-weight:400;opacity:.8">Verifique: Arquivo → Compartilhar → "Qualquer pessoa com o link pode ver"</small>';e.classList.add('on');}
