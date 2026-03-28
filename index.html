@@ -1218,6 +1218,29 @@ function showDebug(){
   const activeVendors = ACTIVE==='all' ? C.sh.filter(v=>(DATA[v]||[]).length>0) : [ACTIVE];
   const allRawD = activeVendors.flatMap(v => getRawD(v));
 
+  // ── BLOCO EXTRA: Vendedores com dados suspeitos (1 cliente "Não Venda") ──
+  const suspectVendors = C.sh.filter(v => {
+    const rows = DATA[v] || [];
+    if (rows.length !== 1) return false;
+    const r = rows[0];
+    return r.motivo && r.motivo.trim();
+  });
+  if (suspectVendors.length > 0) {
+    html += `<div style="margin-bottom:20px;padding:14px;background:rgba(255,100,0,.08);border:1px solid rgba(255,100,0,.3);border-radius:8px">
+      <div style="color:#ff6b00;font-weight:800;margin-bottom:10px;font-size:13px">⚠️ VENDEDORES COM 1 CLIENTE "NÃO VENDA" SUSPEITO</div>
+      ${suspectVendors.map(v => {
+        const r = (DATA[v]||[])[0] || {};
+        const cols = DATA['__cols__'+v] || [];
+        return `<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.04);border-radius:4px;font-size:11px;font-family:'Roboto Mono',monospace">
+          <b style="color:#ff6b00">${v}</b> — via: <b style="color:#ffb800">${r._via||'?'}</b><br>
+          client="<b style="color:#fff">${r.client||'?'}</b>" | dateRaw="<b style="color:#ccc">${r.dateRaw||'?'}</b>"<br>
+          motivo="<b style="color:#ff6b6b">${r.motivo||'?'}</b>" | value=${r.value} | carteira="${r.carteira||''}"<br>
+          <span style="color:#666">Colunas (${cols.length}): ${cols.slice(0,8).map((h,i)=>`[${i}]${h}`).join(' | ')}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   // ── BLOCO 1: Análise de timestamps por cliente ──────────────────
   html += `<div style="margin-bottom:28px">
     <div style="font-family:'Montserrat',sans-serif;font-size:15px;font-weight:800;color:#ffb800;margin-bottom:12px">
