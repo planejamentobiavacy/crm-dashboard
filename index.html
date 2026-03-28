@@ -314,13 +314,19 @@ async function fetchSheet(name) {
 
     window[cbName] = function(data) {
       cleanup();
-      if (data && data.rows && data.rows.length > 0) {
+      if (data && data.error) {
+        // Apps Script retornou erro (aba não existe) — tenta CSV
+        console.warn(`⚠️ AppsScript "${name}": ${data.error} — tentando CSV`);
+        fetchSheetCSV(name).then(resolve);
+      } else if (data && data.rows && data.rows.length > 0) {
+        // Aba existe e tem dados
         const rows = parseAppsScript(data, name);
         console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
         resolve(rows);
       } else {
-        console.warn(`⚠️ AppsScript "${name}" vazio — tentando CSV`);
-        fetchSheetCSV(name).then(resolve);
+        // Aba existe mas está vazia — retorna [] sem tentar CSV
+        console.log(`📭 AppsScript: "${name}" — aba vazia.`);
+        resolve([]);
       }
     };
 
