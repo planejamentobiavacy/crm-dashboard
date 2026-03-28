@@ -899,14 +899,18 @@ function render(){
 
   // ── GRÁFICO + FUNIL lado a lado
   mc.innerHTML+=`
-  <div style="display:grid;grid-template-columns:1fr 300px;gap:18px;margin-bottom:22px">
+  <div style="display:grid;grid-template-columns:1fr 260px 260px;gap:18px;margin-bottom:22px">
     <div class="ch-card">
       <div class="stitle" style="--al:var(--blue)">Evolução Diária — Contatos e Positivados</div>
       <div class="ch-wrap" style="height:280px"><canvas id="cevo"></canvas></div>
     </div>
-    <div class="ch-card" style="display:flex;flex-direction:column;justify-content:space-between">
+    <div class="ch-card" style="display:flex;flex-direction:column">
       <div class="stitle" style="--al:var(--red)">Funil de Vendas</div>
       <div id="funil-wrap" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px"></div>
+    </div>
+    <div class="ch-card" style="display:flex;flex-direction:column">
+      <div class="stitle" style="--al:#cc1a1a">Motivos Não Venda</div>
+      <div id="motivos-wrap" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding-top:8px"></div>
     </div>
   </div>`;
 
@@ -979,7 +983,7 @@ function render(){
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th>Grupo Comercial</th>
+          <th>Cliente</th>
           ${ACTIVE==='all'?'<th>Vendedor</th>':''}
           <th>Etapa</th>
           <th>Fat. Mês</th>
@@ -987,7 +991,7 @@ function render(){
           <th>Carteira</th>
           <th>Dias Contato</th>
           <th>Dias Venda</th>
-          <th>Motivo N.V.</th>
+          <th>Motivo Não Venda</th>
         </tr></thead>
         <tbody id="tb"></tbody>
       </table>
@@ -997,6 +1001,7 @@ function render(){
   requestAnimationFrame(()=>{
     buildEvo(dKeys,byD);
     buildFunil(cntCar, cntCon, cntPos, cntNav, total);
+    buildMotivos(rows);
     drawTbl(rawForTable);
   });
 }
@@ -1112,6 +1117,48 @@ function buildFunil(cntCar, cntCon, cntPos, cntNav, total){
       </div>
       <div style="height:8px;background:var(--gray);border-radius:6px;overflow:hidden">
         <div style="height:100%;width:${barW}%;background:${s.col};border-radius:6px;transition:width .8s cubic-bezier(.23,1,.32,1)"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── MOTIVOS NÃO VENDA ─────────────────────────────────
+function buildMotivos(rows) {
+  const el = document.getElementById('motivos-wrap');
+  if (!el) return;
+
+  // Conta ocorrências de cada motivo
+  const counts = {};
+  rows.forEach(r => {
+    const m = (r.motivo || '').trim();
+    if (!m) return;
+    // Separa múltiplos motivos por " | "
+    m.split('|').forEach(part => {
+      const p = part.trim();
+      if (p) counts[p] = (counts[p] || 0) + 1;
+    });
+  });
+
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
+  if (!sorted.length) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center">Nenhum motivo registrado</div>`;
+    return;
+  }
+
+  const max = sorted[0][1];
+  const colors = ['#cc1a1a','#e05c1a','#d4860a','#b87a00','#8a6500','#6b4f00','#4a3800','#2e2400'];
+
+  el.innerHTML = sorted.map(([motivo, cnt], i) => {
+    const pct  = ((cnt / rows.filter(r=>r.motivo&&r.motivo.trim()).length) * 100).toFixed(0);
+    const barW = ((cnt / max) * 100).toFixed(0);
+    const col  = colors[i] || '#888';
+    return `<div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span style="font-size:10px;font-weight:700;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="${motivo}">${motivo}</span>
+        <span style="font-family:'Roboto Mono',monospace;font-size:11px;font-weight:700;color:${col};margin-left:6px">${cnt} <span style="color:var(--text3);font-weight:400">(${pct}%)</span></span>
+      </div>
+      <div style="height:6px;background:var(--gray);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${barW}%;background:${col};border-radius:4px;transition:width .8s cubic-bezier(.23,1,.32,1)"></div>
       </div>
     </div>`;
   }).join('');
