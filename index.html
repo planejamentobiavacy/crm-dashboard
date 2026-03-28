@@ -232,6 +232,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="dbar" id="dbar" style="display:none">
   <span class="dlbl">📅 Período:</span>
   <div class="dchip active" onclick="setPeriod('all',this)">Todos</div>
+  <div class="dchip" onclick="setPeriod('1',this)">Últ. Dia</div>
   <div class="dchip" onclick="setPeriod('7',this)">7 dias</div>
   <div class="dchip" onclick="setPeriod('mtd',this)">MTD</div>
   <div class="dchip" onclick="setPeriod('custom',this)">Personalizado</div>
@@ -748,6 +749,15 @@ function fltPeriod(rows){
     const ini = new Date(now.getFullYear(), now.getMonth(), 1); // 1º dia do mês atual
     return rows.filter(r => r.date && r.date >= ini);
   }
+  // Últ. Dia — filtra pelo dia mais recente presente nos dados
+  if(PERIOD==='1'){
+    const maxDate = rows.reduce((max, r) => {
+      const d = r.date ? r.date.toISOString().slice(0,10) : '';
+      return d > max ? d : max;
+    }, '');
+    if (!maxDate) return rows;
+    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+  }
   // N dias
   const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
   return rows.filter(r => r.date && r.date >= cut);
@@ -875,10 +885,11 @@ function render(){
   mc.innerHTML='';mc.className='fin';
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
+  const pctPos = cntCar > 0 ? Math.round((cntPos / cntCar) * 100) : null;
   const kpis=[
     {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
     {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
-    {ico:'✅',lbl:'Positivado',  val:cntPos,       kc:'var(--g-pos)'},
+    {ico:'✅',lbl:'Positivado',  val:cntPos,       kc:'var(--g-pos)', ating:pctPos},
     {ico:'❌',lbl:'Não Venda',   val:cntNav,       kc:'var(--red)'},
     {ico:'💰',lbl:'Faturamento', val:fBRL(totVal), kc:'var(--blue2)', sm:true, ating},
   ];
@@ -1135,7 +1146,7 @@ function buildMotivos(rows) {
     // Separa múltiplos motivos por " | "
     m.split('|').forEach(part => {
       const p = part.trim();
-      if (p) counts[p] = (counts[p] || 0) + 1;
+      if (p && !['SIM','NÃO','NAO','S','N'].includes(p.toUpperCase())) counts[p] = (counts[p] || 0) + 1;
     });
   });
 
