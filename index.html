@@ -298,17 +298,23 @@ async function fetchSheet(name) {
   // Apps Script — lê valores calculados de fórmulas corretamente
   try {
     const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    console.log(`🔄 AppsScript chamando: ${name}`);
     const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    console.log(`📡 AppsScript resposta ${name}: status=${r.status} ok=${r.ok}`);
     if (r.ok) {
-      const json = await r.json();
+      const txt = await r.text();
+      console.log(`📄 AppsScript texto ${name} (primeiros 200):`, txt.slice(0,200));
+      const json = JSON.parse(txt);
       if (json.rows && json.rows.length > 0) {
         const rows = parseAppsScript(json, name);
         console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
         return rows;
+      } else {
+        console.warn(`⚠️ AppsScript ${name}: json.rows vazio ou ausente`, json);
       }
     }
   } catch(e) {
-    console.warn(`AppsScript falhou "${name}":`, e.message);
+    console.warn(`❌ AppsScript falhou "${name}":`, e.message, e);
   }
 
   // Fallback CSV
