@@ -197,7 +197,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="sett" id="sett">
   <div class="sett-g">
     <div class="fl"><label>ID da Planilha</label><input id="s-id" value="1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA"></div>
-    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, DENIS, MARCELO, NOA"></div>
+    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATEUS, NOA, RAFAEL, ROSANE, THAIS, WESLEY, ALINE, CINTIA, KEULLY"></div>
     <div class="fl"><label>Col. Grupo Comercial</label><input id="s-cl" value="GRUPO COMERCIAL"></div>
     <div class="fl"><label>Col. Data Envio</label><input id="s-dt" value="DATA ENVIO"></div>
     <div class="fl"><label>Col. Fat. Mês</label><input id="s-vl" value="FAT. MÊS"></div>
@@ -246,7 +246,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 // ── CONFIG ──────────────────────────────────────────
 const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
-  sh:  ['ADRIANO','ALEX','DENIS','MARCELO','NOA'],
+  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
   cl:  'GRUPO COMERCIAL',
   dt:  'DATA ENVIO',
   vl:  'FAT. MÊS',
@@ -664,7 +664,7 @@ async function loadData(){
 
   // Se múltiplas abas têm exatamente o mesmo nº de clientes, mantém só a que
   // está na lista sh original (C.sh) — as outras são fallback
-  const shOriginal = ['ADRIANO','ALEX','DENIS','MARCELO','NOA'];
+  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
   Object.values(countMap).forEach(vendors => {
     if (vendors.length > 1) {
       // Prefere o que está na lista original; se empate, mantém o último
