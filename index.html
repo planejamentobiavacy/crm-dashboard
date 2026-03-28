@@ -292,10 +292,29 @@ function saveSett(){
 // JSONP é fallback para quando CSV falhar (ex: file://).
 let _cbIdx = 0;
 
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NAyDq7RO9Y6zTseZm8AScAiSeqB3fhXmkZc9odQbJHFaaDyyrv1dmt/exec';
+
 async function fetchSheet(name) {
+  // Apps Script — lê valores calculados de fórmulas corretamente
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (r.ok) {
+      const json = await r.json();
+      if (json.rows && json.rows.length > 0) {
+        const rows = parseAppsScript(json, name);
+        console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
+        return rows;
+      }
+    }
+  } catch(e) {
+    console.warn(`AppsScript falhou "${name}":`, e.message);
+  }
+
+  // Fallback CSV
   for (const csvUrl of [
-    `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
-    `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}`,
+    `https://docs.google.com/spreadsheets/d/${C.id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`,
+    `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`,
   ]) {
     try {
       const r = await fetch(csvUrl, { signal: AbortSignal.timeout(12000) });
@@ -304,7 +323,7 @@ async function fetchSheet(name) {
         if (txt && txt.trim().length > 10 && !txt.trim().startsWith('<')) {
           const rows = parseCSV(txt, name);
           if (rows.length > 0) {
-            console.log(`✅ CSV: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
+            console.log(`✅ CSV: ${name} — ${rows.length} clientes`);
             return rows;
           }
         }
@@ -315,6 +334,56 @@ async function fetchSheet(name) {
   }
   console.warn(`⚠️ Sem dados: "${name}"`);
   return [];
+}
+
+// ── APPS SCRIPT PARSER ───────────────────────────────────
+function parseAppsScript(json, vendor) {
+  const { headers, rows } = json;
+  if (!headers || !rows) return [];
+
+  DATA['__cols__' + vendor] = headers;
+
+  const fi = (name) => {
+    const n = name.toLowerCase();
+    let i = headers.findIndex(h => h.toLowerCase() === n);
+    if (i < 0) i = headers.findIndex(h => h.toLowerCase().includes(n.slice(0,6)));
+    return i;
+  };
+
+  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+        iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
+        iMeta=fi(C.meta), iDv=fi(C.dv);
+
+  console.log(`   ${vendor}: DIAS VENDA idx:${iDv} | DIAS CONTATO idx:${iCo}`);
+
+  const get = (row, key) => (row[key] || '').trim();
+  const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+
+  const result = [];
+  for (const row of rows) {
+    const clientRaw = get(row, headers[iCl]);
+    const dateStr   = get(row, headers[iDt]);
+    if (!clientRaw && !dateStr) continue;
+    const motivoNV  = get(row, headers[iMo]  || '');
+    const motivoMot = get(row, headers[iMo2] || '');
+    result.push({
+      vendor,
+      client:    clientRaw.replace(/\.0+$/, ''),
+      dateRaw:   dateStr,
+      date:      pDate(dateStr),
+      value:     num(get(row, headers[iVl])),
+      meta:      num(get(row, headers[iMeta])) * 1000,
+      diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
+      carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
+      contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
+      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      _via:      'apps-script',
+      _iDv:      iDv,
+      _iCo:      iCo,
+      _rawCols:  headers.map(h => row[h] || ''),
+    });
+  }
+  return result;
 }
 
 // ── CSV PARSER ───────────────────────────────────────────
