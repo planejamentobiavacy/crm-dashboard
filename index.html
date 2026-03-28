@@ -313,52 +313,30 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NA
 let _asIdx = 0;
 
 async function fetchSheet(name) {
-  // Apps Script via JSONP — sem CORS, lê fórmulas corretamente
-  return new Promise((resolve) => {
-    const cbName = `_as${_asIdx++}`;
-    const timer = setTimeout(() => {
-      cleanup();
-      console.warn(`⏱️ AppsScript timeout "${name}" — retornando vazio`);
-      resolve([]);
-    }, 15000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[cbName];
-      const el = document.getElementById('_as_' + cbName);
-      if (el) el.remove();
-    }
-
-    window[cbName] = function(data) {
-      cleanup();
+  // Apps Script via fetch com redirect follow — funciona do GitHub Pages
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    const r = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000)
+    });
+    if (r.ok) {
+      const txt = await r.text();
+      const data = JSON.parse(txt);
       if (data && data.rows && data.rows.length > 0) {
-        // Aba existe e tem dados
         const rows = parseAppsScript(data, name);
         console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
-        resolve(rows);
+        return rows;
       } else {
-        // Aba vazia, não encontrada, ou erro — retorna [] sem tentar CSV
-        // Isso evita o fallback CSV que retorna 1 linha de lixo
-        if (data && data.error) {
-          console.log(`📭 AppsScript: "${name}" — ${data.error}`);
-        } else {
-          console.log(`📭 AppsScript: "${name}" — aba vazia.`);
-        }
-        resolve([]);
+        if (data && data.error) console.log(`📭 "${name}": ${data.error}`);
+        else console.log(`📭 "${name}": aba vazia`);
+        return [];
       }
-    };
-
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
-    const s = document.createElement('script');
-    s.id = '_as_' + cbName;
-    s.src = url;
-    s.onerror = () => {
-      cleanup();
-      console.warn(`❌ AppsScript erro de carregamento "${name}" — retornando vazio`);
-      resolve([]);
-    };
-    document.head.appendChild(s);
-  });
+    }
+  } catch(e) {
+    console.warn(`❌ AppsScript fetch "${name}":`, e.message);
+  }
+  return [];
 }
 
 async function fetchSheetCSV(name) {
