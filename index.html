@@ -856,7 +856,6 @@ function render(){
   const hasDiasVenda = (r) => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
   const totVal  = rowsFinanceiro.filter(r => r.value > 0).reduce((a,r) => a + (r.value || 0), 0);
   const totMeta = rowsFinanceiro.reduce((a,r) => a + (r.meta || 0), 0);
-  const ating   = totMeta > 0 ? Math.round((totVal / totMeta) * 100) : null;
 
   // ── KPIs de contagem
   const cntPos  = rows.filter(r => r.value > 0).length;
@@ -905,17 +904,21 @@ function render(){
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
   // ── % META POSITIVAÇÃO
-  // META POSIT. = máximo da coluna (valor repetido, pegar o maior)
-  // POSIT. MÊS  = soma da coluna (acumulado, pegar da data mais recente por cliente)
-  const maxMetaPos = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
+  // ── META FAT.: se repete em todas as linhas → usar máximo
+  const maxMetaFat = rowsFinanceiro.reduce((max, r) => Math.max(max, r.meta || 0), 0);
+  const ating = maxMetaFat > 0 ? Math.round((totVal / maxMetaFat) * 100) : null;
+
+  // ── POSIT. MÊS: soma da coluna (acumulado) | META POSIT.: máximo da coluna
+  const maxMetaPos  = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
   const sumPositMes = rowsFinanceiro.reduce((a, r) => a + (r.positMes || 0), 0);
   const pctPos = maxMetaPos > 0 ? Math.round((sumPositMes / maxMetaPos) * 100) : null;
+
   const kpis=[
-    {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
-    {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
-    {ico:'✅',lbl:'Positivado',  val:cntPos,       kc:'var(--g-pos)', ating:pctPos},
-    {ico:'❌',lbl:'Não Venda',   val:cntNav,       kc:'var(--red)'},
-    {ico:'💰',lbl:'Faturamento', val:fBRL(totVal), kc:'var(--blue2)', sm:true, ating},
+    {ico:'💼',lbl:'Carteira',    val:cntCar,          kc:'var(--g-car)'},
+    {ico:'📞',lbl:'Contato',     val:cntCon,          kc:'var(--blue)'},
+    {ico:'✅',lbl:'Positivado',  val:sumPositMes||cntPos, kc:'var(--g-pos)', ating:pctPos},
+    {ico:'❌',lbl:'Não Venda',   val:cntNav,          kc:'var(--red)'},
+    {ico:'💰',lbl:'Faturamento', val:fBRL(totVal),    kc:'var(--blue2)', sm:true, ating},
   ];
   mc.innerHTML+=`<div class="kpi-g">${kpis.map(k=>`
     <div class="kpi" style="--kc:${k.kc}">
