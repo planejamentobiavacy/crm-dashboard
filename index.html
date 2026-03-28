@@ -680,18 +680,21 @@ async function loadData(){
   const exportData = await loadAllFromAppsScript();
 
   if (exportData) {
-    // Export retorna dados mas usa getValues() — não preserva DIAS VENDA corretamente
-    // Usa apenas para identificar quais abas têm dados, depois recarrega via getSheetData
-    console.log('Export OK — recarregando via getSheetData para dados corretos');
-    await Promise.all(allCandidates.map(async name => {
-      DATA[name] = await fetchSheet(name);
-    }));
+    // Usa dados do export diretamente
+    allCandidates.forEach(name => {
+      const vendorRows = exportData[name];
+      if (vendorRows && vendorRows.length > 0) {
+        const headers = Object.keys(vendorRows[0]);
+        DATA['__cols__' + name] = headers;
+        DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
+        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes`);
+      } else {
+        DATA[name] = [];
+      }
+    });
   } else {
-    // Fallback: carrega individualmente via JSONP
-    console.warn('Export falhou — carregando individualmente via JSONP');
-    await Promise.all(allCandidates.map(async name => {
-      DATA[name] = await fetchSheet(name);
-    }));
+    console.warn('Export falhou');
+    allCandidates.forEach(name => { DATA[name] = []; });
   }
 
   // Filtra abas com dados
