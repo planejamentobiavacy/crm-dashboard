@@ -255,6 +255,7 @@ const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
   sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
   cl:  'GRUPO COMERCIAL',
+  cn:  'CLIENTE',           // coluna nome do cliente
   dt:  'DATA ENVIO',
   vl:  'FAT. MÊS',
   ca:  'CARTEIRA',
@@ -262,6 +263,7 @@ const C = {
   mo:  'NÃO VENDA',
   mo2: 'MOTIVO',
   meta:'META FAT.',       // coluna de meta de faturamento
+  metaPos: 'META POSIT.', // coluna de meta de positivação
   dv:  'DIAS VENDA',     // coluna de dias venda (positivados no gráfico)
 };
 
@@ -397,9 +399,9 @@ function parseAppsScript(json, vendor) {
     return i;
   };
 
-  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+  const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
 
   console.log(`   ${vendor}: DIAS VENDA idx:${iDv} | DIAS CONTATO idx:${iCo}`);
 
@@ -422,10 +424,12 @@ function parseAppsScript(json, vendor) {
     result.push({
       vendor,
       client:    clientRaw.replace(/\.0+$/, ''),
+      clientName: iCn >= 0 ? get(row, headers[iCn]) : '',
       dateRaw:   dateStr,
       date:      pDate(dateStr),
       value:     iVl   >= 0 ? num(get(row, headers[iVl]))   : 0,
       meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) * 1000 : 0,
+      metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
       carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
       contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
@@ -486,9 +490,9 @@ function parseCSV(txt, vendor) {
     return i;
   };
 
-  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+  const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
 
   // Debug: mostra colunas e índices no console
   console.log(`📋 ${vendor}:`, headers.join(' | '));
@@ -508,19 +512,21 @@ function parseCSV(txt, vendor) {
     const motivoMot = get(c, iMo2);
     rows.push({
       vendor,
-      client:    clientRaw.replace(/\.0+$/, ''),
-      dateRaw:   dateStr,
-      date:      pDate(dateStr),
-      value:     num(get(c, iVl)),
-      meta:      num(get(c, iMeta)) * 1000,
-      diasVenda: get(c, iDv),
-      carteira:  get(c, iCa),
-      contato:   get(c, iCo),
-      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
-      _via:      'csv',    // confirma que veio do CSV
-      _rawCols:  c,
-      _iDv:      iDv,
-      _iCo:      iCo,
+      client:     clientRaw.replace(/\.0+$/, ''),
+      clientName: get(c, iCn),
+      dateRaw:    dateStr,
+      date:       pDate(dateStr),
+      value:      num(get(c, iVl)),
+      meta:       num(get(c, iMeta)) * 1000,
+      metaPos:    num(get(c, iMetaPos)),
+      diasVenda:  get(c, iDv),
+      carteira:   get(c, iCa),
+      contato:    get(c, iCo),
+      motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      _via:       'csv',
+      _rawCols:   c,
+      _iDv:       iDv,
+      _iCo:       iCo,
     });
   }
   return rows;
@@ -553,9 +559,9 @@ function parseGviz(resp, vendor) {
     return i;
   };
 
-  const iCl=fi(C.cl), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+  const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iDv=fi(C.dv);
 
   // Helpers para ler células gviz
   const gStr = (row, i) => {
@@ -624,15 +630,17 @@ function parseGviz(resp, vendor) {
     const motivoMot = gStr(row, iMo2);
     rows.push({
       vendor,
-      client:    clientRaw.replace(/\.0+$/, ''),
-      dateRaw:   dateStr,
-      date:      gDate(row, iDt),
-      value:     gNum(row, iVl),
-      meta:      gNum(row, iMeta) * 1000,  // META FAT. está em milhares na planilha
-      diasVenda: gStrFull(row, iDv),
-      carteira:  gStr(row, iCa),
-      contato:   gStrFull(row, iCo),
-      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      client:     clientRaw.replace(/\.0+$/, ''),
+      clientName: gStr(row, iCn),
+      dateRaw:    dateStr,
+      date:       gDate(row, iDt),
+      value:      gNum(row, iVl),
+      meta:       gNum(row, iMeta) * 1000,
+      metaPos:    gNum(row, iMetaPos),
+      diasVenda:  gStrFull(row, iDv),
+      carteira:   gStr(row, iCa),
+      contato:    gStrFull(row, iCo),
+      motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
     });
   }
   return rows;
@@ -885,7 +893,8 @@ function render(){
   mc.innerHTML='';mc.className='fin';
 
   // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
-  const pctPos = cntCar > 0 ? Math.round((cntPos / cntCar) * 100) : null;
+  const totMetaPos = rowsFinanceiro.reduce((a,r) => a + (r.metaPos || 0), 0);
+  const pctPos = totMetaPos > 0 ? Math.round((cntPos / totMetaPos) * 100) : null;
   const kpis=[
     {ico:'💼',lbl:'Carteira',    val:cntCar,       kc:'var(--g-car)'},
     {ico:'📞',lbl:'Contato',     val:cntCon,       kc:'var(--blue)'},
@@ -1195,7 +1204,9 @@ function drawTbl(rows, noUpdate){
       : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
     const car = (r.carteira||'').toLowerCase().trim();
     return `<tr>
-      <td>${r.client||'—'}</td>
+      <td>
+        ${r.clientName ? `<div style="font-weight:600">${r.clientName}</div><div style="font-size:10px;color:var(--text3)">${r.client||''}</div>` : (r.client||'—')}
+      </td>
       ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
       <td>${bdg}</td>
       <td style="font-family:'Roboto Mono',monospace;color:${r.value>0?'#1a8c4e':'var(--text2)'};font-weight:${r.value>0?700:400}">${r.value>0?fBRL(r.value):'—'}</td>
