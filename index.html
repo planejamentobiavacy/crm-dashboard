@@ -369,9 +369,10 @@ function parseAppsScript(json, vendor) {
   DATA['__cols__' + vendor] = headers;
 
   const fi = (name) => {
-    const n = name.toLowerCase();
-    let i = headers.findIndex(h => h.toLowerCase() === n);
-    if (i < 0) i = headers.findIndex(h => h.toLowerCase().includes(n.slice(0,6)));
+    if (!name) return -1;
+    const n = name.toLowerCase().trim();
+    let i = headers.findIndex(h => h.toLowerCase().trim() === n);
+    if (i < 0) i = headers.findIndex(h => h.toLowerCase().trim().includes(n));
     return i;
   };
 
@@ -381,23 +382,23 @@ function parseAppsScript(json, vendor) {
 
   console.log(`   ${vendor}: DIAS VENDA idx:${iDv} | DIAS CONTATO idx:${iCo}`);
 
-  const get = (row, key) => (row[key] || '').trim();
+  const get = (row, key) => key ? (row[key] || '').trim() : '';
   const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 
   const result = [];
   for (const row of rows) {
-    const clientRaw = get(row, headers[iCl]);
-    const dateStr   = get(row, headers[iDt]);
+    const clientRaw = iCl >= 0 ? get(row, headers[iCl]) : '';
+    const dateStr   = iDt >= 0 ? get(row, headers[iDt]) : '';
     if (!clientRaw && !dateStr) continue;
-    const motivoNV  = get(row, headers[iMo]  || '');
-    const motivoMot = get(row, headers[iMo2] || '');
+    const motivoNV  = iMo  >= 0 ? get(row, headers[iMo])  : '';
+    const motivoMot = iMo2 >= 0 ? get(row, headers[iMo2]) : '';
     result.push({
       vendor,
       client:    clientRaw.replace(/\.0+$/, ''),
       dateRaw:   dateStr,
       date:      pDate(dateStr),
-      value:     num(get(row, headers[iVl])),
-      meta:      num(get(row, headers[iMeta])) * 1000,
+      value:     iVl   >= 0 ? num(get(row, headers[iVl]))   : 0,
+      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) * 1000 : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
       carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
       contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
