@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://script.google.com https://script.googleusercontent.com https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src *;">
 <title>CRM · Funil de Vendas</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -313,30 +314,41 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDFIvyaTsTz8NA
 let _asIdx = 0;
 
 async function fetchSheet(name) {
-  // Apps Script via fetch com redirect follow — funciona do GitHub Pages
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-    const r = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15000)
-    });
-    if (r.ok) {
-      const txt = await r.text();
-      const data = JSON.parse(txt);
+  return new Promise((resolve) => {
+    const cbName = `_as${_asIdx++}`;
+
+    const timer = setTimeout(() => {
+      cleanup();
+      console.warn(`⏱️ Timeout "${name}" — vazio`);
+      resolve([]);
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      const el = document.getElementById('_as_' + cbName);
+      if (el) el.remove();
+    }
+
+    window[cbName] = function(data) {
+      cleanup();
       if (data && data.rows && data.rows.length > 0) {
         const rows = parseAppsScript(data, name);
         console.log(`✅ AppsScript: ${name} — ${rows.length} clientes | DIAS VENDA ex: "${rows[0]?.diasVenda}"`);
-        return rows;
+        resolve(rows);
       } else {
-        if (data && data.error) console.log(`📭 "${name}": ${data.error}`);
-        else console.log(`📭 "${name}": aba vazia`);
-        return [];
+        console.log(`📭 "${name}": ${data && data.error ? data.error : 'vazio'}`);
+        resolve([]);
       }
-    }
-  } catch(e) {
-    console.warn(`❌ AppsScript fetch "${name}":`, e.message);
-  }
-  return [];
+    };
+
+    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&callback=${cbName}&t=${Date.now()}`;
+    const s = document.createElement('script');
+    s.id = '_as_' + cbName;
+    s.src = url;
+    s.onerror = () => { cleanup(); console.warn(`❌ "${name}" — erro script`); resolve([]); };
+    document.head.appendChild(s);
+  });
 }
 
 async function fetchSheetCSV(name) {
