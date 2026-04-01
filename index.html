@@ -88,8 +88,8 @@ main{padding:26px 36px;max-width:1600px;margin:0 auto}
 .kpi-bar{position:absolute;top:0;left:0;right:0;height:4px;background:var(--kc,var(--blue));border-radius:var(--r) var(--r) 0 0}
 .kpi-ico{position:absolute;top:14px;right:14px;font-size:30px;opacity:.1}
 .kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:9px}
-.kpi-val{font-family:'Roboto Mono',monospace;font-size:30px;font-weight:500;color:var(--text);line-height:1;margin-bottom:5px}
-.kpi-val.sm{font-size:19px}.kpi-sub{font-size:11px;color:var(--text3);font-weight:500}
+.kpi-val{font-family:'Montserrat',sans-serif;font-size:28px;font-weight:700;color:var(--text);line-height:1;margin-bottom:5px}
+.kpi-val.sm{font-size:19px}.kpi-val.lg{font-family:'Montserrat',sans-serif;font-size:30px;font-weight:800}.kpi-sub{font-size:11px;color:var(--text3);font-weight:500}
 
 /* ── SECTION TITLE ── */
 .stitle{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -207,6 +207,10 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div class="fl"><label>Col. Não Venda</label><input id="s-mo" value="NÃO VENDA"></div>
   </div>
   <button class="btn" style="background:var(--blue);color:#fff" onclick="saveSett()">💾 Salvar e Recarregar</button>
+  <div style="margin-top:20px;border-top:1px solid var(--gray);padding-top:16px">
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Vendedores — Última Atualização</div>
+    <div id="sett-vendors" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;font-size:12px"></div>
+  </div>
 </div>
 
 <!-- DEBUG MODAL -->
@@ -227,6 +231,11 @@ tbody td:first-child{font-weight:700;color:var(--text)}
   <div id="btn-developer" class="vtab" onclick="setGroup('developer')" style="color:#1a3a8c">💻 Developer</div>
   <div style="width:1px;height:24px;background:rgba(0,0,0,.12);margin:0 4px"></div>
   <div id="tabs" style="display:flex;overflow-x:auto"></div>
+</div>
+
+<!-- MTD CARDS BAR -->
+<div id="mtd-bar" style="display:none;padding:10px 36px;background:var(--off);border-bottom:1px solid var(--gray)">
+  <div id="mtd-cards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:600px"></div>
 </div>
 
 <!-- DATE BAR -->
@@ -293,7 +302,28 @@ const getGroupVendors   = () => {
 window.addEventListener('DOMContentLoaded', loadData);
 
 // ── SETTINGS ─────────────────────────────────────────
-function toggleSett(){ document.getElementById('sett').classList.toggle('open'); }
+function toggleSett(){
+  document.getElementById('sett').classList.toggle('open');
+  // Popula lista de vendedores com última DATA ENVIO
+  const el = document.getElementById('sett-vendors');
+  if (!el) return;
+  const vendors = C.sh.filter(v => (DATA[v]||[]).length > 0);
+  if (!vendors.length) {
+    el.innerHTML = '<span style="color:var(--text3)">Nenhum dado carregado ainda</span>';
+    return;
+  }
+  el.innerHTML = [...vendors].sort((a,b) => a.localeCompare(b)).map(v => {
+    const rows = DATA[v] || [];
+    const lastDate = rows.reduce((max, r) => {
+      const d = r.dateRaw || '';
+      return d > max ? d : max;
+    }, '');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--off);border-radius:6px;border-left:3px solid #1a8c4e">
+      <span style="font-weight:700;color:var(--text)">${v}</span>
+      <span style="color:var(--text3);font-size:11px">${lastDate || '—'}</span>
+    </div>`;
+  }).join('');
+}
 function saveSett(){
   C.id = document.getElementById('s-id').value.trim();
   C.sh = document.getElementById('s-sh').value.split(',').map(s=>s.trim()).filter(Boolean);
@@ -760,7 +790,34 @@ function applyDates(){
   D_TO=t?new Date(t+'T23:59:59'):null;
   render();
 }
-function fltPeriod(rows){
+// Extrai todos os dias de uma string como "5-12-20-28"
+function parseDays(str) {
+  if (!str || str === '0') return [];
+  return String(str).split(/[-;,]/).map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
+}
+
+// Retorna o dia mais recente presente nos dados (em DIAS VENDA ou DIAS CONTATO)
+// da DATA ENVIO mais recente
+function getMaxDay(rows) {
+  // Pega a data mais recente
+  const maxDate = rows.reduce((max, r) => {
+    const d = r.date ? r.date.toISOString().slice(0,10) : '';
+    return d > max ? d : max;
+  }, '');
+  if (!maxDate) return null;
+  // Entre os registros com data mais recente, pega o maior dia de DIAS VENDA/CONTATO
+  const recentRows = rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+  let maxDay = 0;
+  recentRows.forEach(r => {
+    const dvDays = parseDays(r.diasVenda);
+    const coDays = parseDays(r.contato);
+    [...dvDays, ...coDays].forEach(d => { if (d > maxDay) maxDay = d; });
+  });
+  return maxDay > 0 ? { maxDate, maxDay } : null;
+}
+
+// Filtra por DATA ENVIO — usado para Não Venda que não tem DIAS VENDA/CONTATO
+function fltPeriodByDate(rows){
   if(PERIOD==='all') return rows;
   if(PERIOD==='custom'){
     return rows.filter(r=>{
@@ -772,21 +829,76 @@ function fltPeriod(rows){
   }
   if(PERIOD==='mtd'){
     const now = new Date();
-    const ini = new Date(now.getFullYear(), now.getMonth(), 1); // 1º dia do mês atual
+    const ini = new Date(now.getFullYear(), now.getMonth(), 1);
     return rows.filter(r => r.date && r.date >= ini);
   }
-  // Últ. Dia — filtra pelo dia mais recente presente nos dados
+  // Últ. Dia e N dias — usa DATA ENVIO mais recente
+  const maxDate = rows.reduce((max, r) => {
+    const d = r.date ? r.date.toISOString().slice(0,10) : '';
+    return d > max ? d : max;
+  }, '');
   if(PERIOD==='1'){
+    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+  }
+  const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
+  return rows.filter(r => r.date && r.date >= cut);
+}
+
+function fltPeriod(rows){
+  if(PERIOD==='all') return rows;
+
+  if(PERIOD==='custom'){
+    return rows.filter(r=>{
+      if(!r.date) return false;
+      if(D_FROM && r.date<D_FROM) return false;
+      if(D_TO   && r.date>D_TO)   return false;
+      return true;
+    });
+  }
+
+  if(PERIOD==='mtd'){
+    // MTD: clientes que têm qualquer dia preenchido no mês atual
+    const now = new Date();
+    const ini = new Date(now.getFullYear(), now.getMonth(), 1);
+    return rows.filter(r => r.date && r.date >= ini);
+  }
+
+  // Últ. Dia = dia anterior ao maior dia de DIAS VENDA/CONTATO da DATA ENVIO mais recente
+  if(PERIOD==='1'){
+    const info = getMaxDay(rows);
+    if (!info) return rows;
+    const prevDay = info.maxDay - 1;
+    if (prevDay <= 0) return [];
+    // Filtra registros da data mais recente que têm prevDay em DIAS VENDA ou DIAS CONTATO
+    return rows.filter(r => {
+      if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
+      const dvDays = parseDays(r.diasVenda);
+      const coDays = parseDays(r.contato);
+      return dvDays.includes(prevDay) || coDays.includes(prevDay);
+    });
+  }
+
+  // N dias: filtra por dia N presente em DIAS VENDA ou DIAS CONTATO
+  if(!isNaN(parseInt(PERIOD))){
+    // Usa a data mais recente dos dados como referência
     const maxDate = rows.reduce((max, r) => {
       const d = r.date ? r.date.toISOString().slice(0,10) : '';
       return d > max ? d : max;
     }, '');
-    if (!maxDate) return rows;
-    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+    const nDias = parseInt(PERIOD);
+    // Pega os últimos N dias presentes em DIAS VENDA/CONTATO
+    const info = getMaxDay(rows);
+    if (!info) return rows;
+    const cutDay = info.maxDay - nDias + 1;
+    return rows.filter(r => {
+      if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
+      const dvDays = parseDays(r.diasVenda);
+      const coDays = parseDays(r.contato);
+      return [...dvDays, ...coDays].some(d => d >= cutDay && d <= info.maxDay);
+    });
   }
-  // N dias
-  const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
-  return rows.filter(r => r.date && r.date >= cut);
+
+  return rows;
 }
 
 // ── TABS ──────────────────────────────────────────────
@@ -866,27 +978,67 @@ function render(){
 
   // ── KPIs de contagem
   const cntPos  = rows.filter(r => r.value > 0).length;
-  const cntNav  = rows.filter(r => r.motivo  && r.motivo.trim()).length;
+  // NÃO VENDA filtra por DATA ENVIO (não por DIAS VENDA/CONTATO)
+  const rowsByDate = fltPeriodByDate(dd);
+  const cntNav  = rowsByDate.filter(r => r.motivo && r.motivo.trim()).length;
   const cntCon  = rows.filter(r => r.contato && r.contato.trim()).length;
-  const cntCar  = rows.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
+  // CARTEIRA: todos os grupos com SIM na data mais recente (não depende de DIAS VENDA/CONTATO)
+  const cntCar  = dd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
+  // VENDA = contagem distinta de grupos com DIAS VENDA preenchido
+  const cntVen  = rows.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length;
 
   const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
   const total = rows.length;
 
-  // ── Evolução diária — usa TODOS os registros brutos (não dedupados)
-  // CONTATOS  = DIAS CONTATO preenchido (string não vazia)
-  // POSITIVADOS = DIAS VENDA preenchido (string não vazia e != "0")
+  // ── Evolução diária
+  // Usa os dias específicos das colunas DIAS CONTATO e DIAS VENDA
+  // Ex: DIAS CONTATO = "5-12-20-28" → cliente aparece nos dias 5, 12, 20 e 28
   const evoRaw = fltPeriod(allRaw);
 
   const byD = {};
+
+  // Extrai o mês/ano da data mais recente dos dados para montar as datas completas
+  const refDate = evoRaw.reduce((max, r) => r.date && r.date > max ? r.date : max, new Date(0));
+  const refYear  = refDate.getFullYear();
+  const refMonth = refDate.getMonth(); // 0-based
+
+  const getDayKey = (day) => {
+    const d = new Date(refYear, refMonth, parseInt(day));
+    return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+  };
+
   evoRaw.forEach(r => {
-    if (!r.date) return;
-    const k = r.date.toISOString().slice(0,10);
-    if (!byD[k]) byD[k] = { contato:0, positivado:0 };
-    const dv = String(r.diasVenda || '').trim();
-    const co = String(r.contato  || '').trim();
-    if (co && co !== '0')            byD[k].contato++;
-    if (dv && dv !== '0' && dv !== '') byD[k].positivado++;
+    const clientKey = (r.vendor||'') + '::' + r.client;
+
+    // Expande DIAS CONTATO
+    const coStr = String(r.contato || '').trim();
+    if (coStr && coStr !== '0') {
+      coStr.split(/[-;,]/).map(d => d.trim()).filter(Boolean).forEach(day => {
+        const k = getDayKey(day);
+        if (!k) return;
+        if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
+        byD[k].contato.add(clientKey);
+      });
+    }
+
+    // Expande DIAS VENDA
+    const dvStr = String(r.diasVenda || '').trim();
+    if (dvStr && dvStr !== '0') {
+      dvStr.split(/[-;,]/).map(d => d.trim()).filter(Boolean).forEach(day => {
+        const k = getDayKey(day);
+        if (!k) return;
+        if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
+        byD[k].positivado.add(clientKey);
+        // DEBUG dia 30
+        if (parseInt(day) === 30) console.log(`🔍 DIA 30 VENDA: ${clientKey} | diasVenda="${dvStr}"`);
+      });
+    }
+  });
+
+  // Converte Sets para contagens
+  Object.values(byD).forEach(d => {
+    d.contato    = d.contato.size;
+    d.positivado = d.positivado.size;
   });
   const dKeys = Object.keys(byD).sort();
 
@@ -909,40 +1061,79 @@ function render(){
   const mc=document.getElementById('mc');
   mc.innerHTML='';mc.className='fin';
 
-  // ── KPI CARDS — ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA, FATURAMENTO
-  // ── % META POSITIVAÇÃO
-  // ── META FAT.: se repete em todas as linhas → usar máximo
-  // META FAT. varia por dia — soma de todos os dias = meta total do vendedor
-  const maxMetaFat = rowsFinanceiro.reduce((a, r) => a + (r.meta || 0), 0);
-  const ating = maxMetaFat > 0 ? Math.round((totVal / maxMetaFat) * 100) : null;
+  // ── FATURAMENTO MTD e POSITIVADO MTD — sempre acumulado do mês, sem filtro de período
+  const ddAll = dedup(allRaw);
+  const rowsMtd = ddAll.filter(r => {
+    if (!r.date) return false;
+    const now = new Date();
+    return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const rowsFinanceiroMtd = dedupGlobalFn(rowsMtd);
+  const totValMtd    = rowsFinanceiroMtd.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0);
+  const maxMetaFat   = rowsFinanceiroMtd.reduce((a,r) => a + (r.meta||0), 0);
+  const ating        = maxMetaFat > 0 ? Math.round((totValMtd / maxMetaFat) * 100) : null;
 
-  // ── POSIT. MÊS: soma da coluna (acumulado) | META POSIT.: máximo da coluna
-  const maxMetaPos  = rowsFinanceiro.reduce((max, r) => Math.max(max, r.metaPos || 0), 0);
-  // POSIT. MÊS varia por dia — soma = total do mês
-  const sumPositMes = rowsFinanceiro.reduce((a, r) => a + (r.positMes || 0), 0);
-  const pctPos = maxMetaPos > 0 ? Math.round((sumPositMes / maxMetaPos) * 100) : null;
+  // POSIT. MTD e META POSIT.: calcula por vendedor e soma
+  // — META POSIT. = máximo por vendedor (mesmo valor em todas as linhas do vendedor)
+  // — POSIT. MÊS  = soma por vendedor (varia por dia, acumulado do mês)
+  const vendorsAtivos = getGroupVendors().filter(v => (DATA[v]||[]).length > 0);
+  let totalMetaPos = 0;
+  let totalPositMes = 0;
+  vendorsAtivos.forEach(v => {
+    const vRowsMtd = fltPeriodByDate(dedup(getRaw(v))).filter(r => {
+      if (!r.date) return false;
+      const now = new Date();
+      return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
+    });
+    const vMetaPos  = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    const vPositMes = vRowsMtd.reduce((a,r) => a + (r.positMes||0), 0);
+    totalMetaPos  += vMetaPos;
+    totalPositMes += vPositMes;
+  });
+  const sumPositMes = totalPositMes;
+  const pctPos      = totalMetaPos > 0 ? Math.round((totalPositMes / totalMetaPos) * 100) : null;
 
-  const kpis=[
-    {ico:'💼',lbl:'Carteira',    val:cntCar,          kc:'var(--g-car)'},
-    {ico:'📞',lbl:'Contato',     val:cntCon,          kc:'var(--blue)'},
-    {ico:'✅',lbl:'Positivado',  val:sumPositMes||cntPos, kc:'var(--g-pos)', ating:pctPos},
-    {ico:'❌',lbl:'Não Venda',   val:cntNav,          kc:'var(--red)'},
-    {ico:'💰',lbl:'Faturamento', val:fBRL(totVal),    kc:'var(--blue2)', sm:true, ating},
+  // ── KPIs linha 1 — respeitam filtro de período
+  const kpisRow1 = [
+    {ico:'💼', lbl:'Carteira',   sub:'Grupos Comerciais', val:cntCar, kc:'var(--g-car)'},
+    {ico:'📞', lbl:'Contato',    sub:'Grupos Comerciais', val:cntCon, kc:'var(--blue)'},
+    {ico:'🛒', lbl:'Venda',      sub:'Grupos Comerciais', val:cntVen, kc:'var(--g-pos)'},
+    {ico:'❌', lbl:'Não Venda',  sub:'Grupos Comerciais', val:cntNav, kc:'var(--red)'},
   ];
-  mc.innerHTML+=`<div class="kpi-g">${kpis.map(k=>`
+  // ── KPIs linha MTD — sempre acumulado do mês
+  const kpisRow2 = [
+    {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), kc:'var(--blue2)', lg:true, ating},
+    {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, kc:'var(--g-pos)', lg:true, ating:pctPos},
+  ];
+
+  const kpiHtml = (k) => `
     <div class="kpi" style="--kc:${k.kc}">
       <div class="kpi-bar"></div>
       <div class="kpi-ico">${k.ico}</div>
       <div class="kpi-lbl">${k.lbl}</div>
-      <div class="kpi-val${k.sm?' sm':''}">${k.val}</div>
+      <div class="kpi-val${k.lg?' lg':k.sm?' sm':''}">${k.val}</div>
+      ${k.sub ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${k.sub}</div>` : ''}
       ${k.ating!=null ? `
         <div style="margin-top:8px">
           <div style="height:5px;background:var(--gray);border-radius:4px;overflow:hidden">
             <div style="height:100%;width:${Math.min(k.ating,100)}%;background:${k.ating>=100?'#1a8c4e':k.ating>=70?'#b87a00':'var(--red)'};border-radius:4px;transition:width .8s"></div>
           </div>
-          <div style="font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;font-family:'Roboto Mono',monospace">${k.ating}% da meta</div>
+          <div style="font-size:13px;font-weight:700;color:var(--text3);margin-top:4px;font-family:'Roboto Mono',monospace">${k.ating}% da meta</div>
         </div>` : ''}
-    </div>`).join('')}</div>`;
+    </div>`;
+
+  // Renderiza MTD cards no mtd-bar (acima do filtro de período)
+  const mtdBar = document.getElementById('mtd-bar');
+  const mtdCards = document.getElementById('mtd-cards');
+  if (mtdBar && mtdCards) {
+    mtdBar.style.display = 'block';
+    mtdCards.innerHTML = kpisRow2.map(kpiHtml).join('');
+  }
+
+  mc.innerHTML += `
+    <div class="kpi-g" style="grid-template-columns:repeat(4,1fr);margin-bottom:22px">
+      ${kpisRow1.map(kpiHtml).join('')}
+    </div>`;
 
   // ── GRÁFICO + FUNIL lado a lado
   mc.innerHTML+=`
@@ -1047,8 +1238,8 @@ function render(){
 
   requestAnimationFrame(()=>{
     buildEvo(dKeys,byD);
-    buildFunil(cntCar, cntCon, cntPos, cntNav, total);
-    buildMotivos(rows);
+    buildFunil(cntCar, cntCon, cntVen, cntNav, total);
+    buildMotivos(rowsByDate);  // Não Venda filtra por DATA ENVIO
     drawTbl(rawForTable);
   });
 }
@@ -1133,15 +1324,15 @@ function buildEvo(dKeys, byD){
 }
 
 // ── FUNIL VISUAL ──────────────────────────────────────
-function buildFunil(cntCar, cntCon, cntPos, cntNav, total){
+function buildFunil(cntCar, cntCon, cntVen, cntNav, total){
   const el = document.getElementById('funil-wrap');
   if (!el) return;
 
   const stages = [
-    { lbl:'Carteira',   val:cntCar, col:'#b87a00', bg:'#fff8e6', ico:'💼' },
-    { lbl:'Contato',    val:cntCon, col:'#1a3a8c', bg:'#e8eef9', ico:'📞' },
-    { lbl:'Positivado', val:cntPos, col:'#1a8c4e', bg:'#e6f7ee', ico:'✅' },
-    { lbl:'Não Venda',  val:cntNav, col:'#cc1a1a', bg:'#ffeaea', ico:'❌' },
+    { lbl:'Carteira',  val:cntCar, col:'#b87a00', ico:'💼' },
+    { lbl:'Contato',   val:cntCon, col:'#1a3a8c', ico:'📞' },
+    { lbl:'Venda',     val:cntVen, col:'#1a8c4e', ico:'🛒' },
+    { lbl:'Não Venda', val:cntNav, col:'#cc1a1a', ico:'❌' },
   ];
 
   const max = Math.max(...stages.map(s=>s.val), 1);
@@ -1238,7 +1429,7 @@ function drawTbl(rows, noUpdate){
       <td>${bdg}</td>
       <td style="font-family:'Roboto Mono',monospace;color:${r.value>0?'#1a8c4e':'var(--text2)'};font-weight:${r.value>0?700:400}">${r.value>0?fBRL(r.value):'—'}</td>
       <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${r.dateRaw||'—'}</td>
-      <td style="color:${car==='sim'?'#b87a00':'var(--text3)'};font-weight:${car==='sim'?700:400}">${r.carteira||'—'}</td>
+      <td>${car==='sim' ? `<span class="badge" style="background:#fff3cd;color:#b87a00">SIM</span>` : `<span style="color:var(--text3)">—</span>`}</td>
       <td style="font-family:'Roboto Mono',monospace">${r.contato||'—'}</td>
       <td style="font-family:'Roboto Mono',monospace;color:#1a8c4e">${r.diasVenda||'—'}</td>
       <td style="color:var(--red);font-weight:${r.motivo?600:400}">${r.motivo||'—'}</td>
