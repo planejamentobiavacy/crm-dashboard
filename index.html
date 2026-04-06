@@ -206,7 +206,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     </div>
     <div class="hdr-r">
       <span class="upd" id="upd">—</span>
-      <button class="btn btn-w" id="btn-ref" onclick="loadData()">↻ Atualizar</button>
+      <button class="btn btn-w" id="btn-ref" onclick="hardRefresh()">↻ Atualizar</button>
       <button class="btn btn-r" onclick="toggleSett()">⚙ Configurar</button>
       <button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.3)" onclick="showDebug()">🔍 Debug</button>
     </div>
@@ -688,6 +688,15 @@ function pDate(s){
   if(m) return new Date(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
   const d = new Date(s);
   return isNaN(d) ? null : d;
+}
+
+// ── HARD REFRESH ─────────────────────────────────────
+function hardRefresh(){
+  // Limpa caches do browser e recarrega forçado (equivalente a Ctrl+Shift+R)
+  if('caches' in window){
+    caches.keys().then(names => names.forEach(n => caches.delete(n)));
+  }
+  window.location.reload(true);
 }
 
 // ── LOAD ──────────────────────────────────────────────
