@@ -36,10 +36,13 @@ body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text)
 /* ── HEADER ── */
 .hdr{position:sticky;top:0;z-index:100;background:var(--blue);box-shadow:var(--sh);overflow:hidden;min-height:100px}
 .hdr-wave{position:absolute;inset:0;pointer-events:none}
+/* Red diagonal accent — bottom-right corner only */
 .hdr-wave::before{content:'';position:absolute;top:-30px;right:-60px;width:28%;height:200%;
   background:var(--red);transform:skewX(-12deg);border-radius:0}
+/* Darker red sliver behind */
 .hdr-wave::after{content:'';position:absolute;top:-30px;right:-90px;width:20%;height:200%;
   background:var(--red2);opacity:.6;transform:skewX(-12deg)}
+/* No white swoosh */
 .hdr-swoosh{display:none}
 .hdr-inner{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:22px 36px;flex-wrap:wrap;gap:12px}
 .logo{display:flex;align-items:center;gap:14px}
@@ -52,18 +55,6 @@ body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text)
 .btn-w{background:var(--white);color:var(--blue)}.btn-w:hover{background:var(--gray)}
 .btn-r{background:var(--red2);color:var(--white);border:1.5px solid rgba(255,255,255,.2)}.btn-r:hover{background:var(--red)}
 .btn.ld{opacity:.6;pointer-events:none}
-
-/* ── TOAST DE CONEXÃO ── */
-#conn-toast{position:fixed;bottom:24px;right:24px;z-index:999;max-width:420px;background:#0f1f4a;color:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.35);font-size:12px;display:none;border-left:4px solid var(--red2)}
-#conn-toast.show{display:block;animation:slideIn .3s ease}
-#conn-toast .ct-title{font-weight:800;font-size:13px;margin-bottom:6px;color:#ff6b6b}
-#conn-toast .ct-body{color:rgba(255,255,255,.8);line-height:1.5}
-#conn-toast .ct-close{position:absolute;top:10px;right:12px;cursor:pointer;opacity:.6;font-size:15px}
-#conn-toast .ct-close:hover{opacity:1}
-#conn-progress{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--blue2),var(--blue3));z-index:200;transform:scaleX(0);transform-origin:left;transition:transform .4s ease;display:none}
-#conn-progress.active{display:block;animation:loadBar 1.8s ease-in-out infinite alternate}
-@keyframes loadBar{from{transform:scaleX(.1)}to{transform:scaleX(.9)}}
-@keyframes slideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
 /* ── SETTINGS ── */
 .sett{display:none;background:var(--white);border-bottom:2px solid var(--gray);padding:22px 36px}
@@ -182,16 +173,6 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 </head>
 <body>
 
-<!-- PROGRESS BAR -->
-<div id="conn-progress"></div>
-
-<!-- CONNECTION TOAST -->
-<div id="conn-toast">
-  <span class="ct-close" onclick="document.getElementById('conn-toast').classList.remove('show')">✕</span>
-  <div class="ct-title" id="ct-title">Erro de Conexão</div>
-  <div class="ct-body" id="ct-body"></div>
-</div>
-
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-wave"></div>
@@ -206,7 +187,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     </div>
     <div class="hdr-r">
       <span class="upd" id="upd">—</span>
-      <button class="btn btn-w" id="btn-ref" onclick="hardRefresh()">↻ Atualizar</button>
+      <button class="btn btn-w" id="btn-ref" onclick="loadData()">↻ Atualizar</button>
       <button class="btn btn-r" onclick="toggleSett()">⚙ Configurar</button>
       <button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.3)" onclick="showDebug()">🔍 Debug</button>
     </div>
@@ -217,7 +198,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="sett" id="sett">
   <div class="sett-g">
     <div class="fl"><label>ID da Planilha</label><input id="s-id" value="1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA"></div>
-    <div class="fl"><label>Abas dos Vendedores (vírgula)</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATEUS, NOA, RAFAEL, ROSANE, THAIS, WESLEY, ALINE, CINTIA, KEULLY"></div>
+    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATEUS, NOA, RAFAEL, ROSANE, THAIS, WESLEY, ALINE, CINTIA, KEULLY"></div>
     <div class="fl"><label>Col. Grupo Comercial</label><input id="s-cl" value="GRUPO COMERCIAL"></div>
     <div class="fl"><label>Col. Data Envio</label><input id="s-dt" value="DATA ENVIO"></div>
     <div class="fl"><label>Col. Fat. Mês</label><input id="s-vl" value="FAT. MÊS"></div>
@@ -243,6 +224,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
   </div>
 </div>
 
+
 <div class="tabs" style="display:flex;align-items:center;gap:0">
   <div id="tab-all" class="vtab active" onclick="setGroup('all');document.querySelectorAll('.vtab').forEach(v=>v.classList.remove('active'));this.classList.add('active')">🌐 Todos</div>
   <div id="btn-farmer" class="vtab" onclick="setGroup('farmer')" style="color:#b87a00">🌾 Farmer</div>
@@ -260,6 +242,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="dbar" id="dbar" style="display:none">
   <span class="dlbl">📅 Período:</span>
   <div class="dchip active" onclick="setPeriod('all',this)">Todos</div>
+  <div class="dchip" onclick="setPeriod('hoje',this)">Hoje</div>
   <div class="dchip" onclick="setPeriod('1',this)">Últ. Dia</div>
   <div class="dchip" onclick="setPeriod('7',this)">7 dias</div>
   <div class="dchip" onclick="setPeriod('mtd',this)">MTD</div>
@@ -281,19 +264,19 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 // ── CONFIG ──────────────────────────────────────────
 const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
-  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
+  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','LEANDRO','LUCAS','MATEUS','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
   cl:  'GRUPO COMERCIAL',
-  cn:  'CLIENTE',
+  cn:  'CLIENTE',           // coluna nome do cliente
   dt:  'DATA ENVIO',
   vl:  'FAT. MÊS',
   ca:  'CARTEIRA',
   co:  'DIAS CONTATO',
   mo:  'NÃO VENDA',
   mo2: 'MOTIVO',
-  meta:'META FAT.',
-  metaPos: 'META POSIT.',
-  positMes: 'POSIT. MÊS',
-  dv:  'DIAS VENDA',
+  meta:'META FAT.',       // coluna de meta de faturamento
+  metaPos: 'META POSIT.', // coluna de meta de positivação
+  positMes: 'POSIT. MÊS', // coluna de positivados acumulados no mês
+  dv:  'DIAS VENDA',     // coluna de dias venda (positivados no gráfico)
 };
 
 const STAGES = [
@@ -319,33 +302,10 @@ const getGroupVendors   = () => {
 // ── BOOT ─────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', loadData);
 
-// ── TOAST & PROGRESS ─────────────────────────────────
-function showToast(title, body, isError = true) {
-  const t = document.getElementById('conn-toast');
-  const tTitle = document.getElementById('ct-title');
-  const tBody  = document.getElementById('ct-body');
-  tTitle.textContent = title;
-  tBody.innerHTML = body;
-  t.style.borderLeftColor = isError ? 'var(--red2)' : '#1a8c4e';
-  tTitle.style.color = isError ? '#ff6b6b' : '#00e5a0';
-  t.classList.add('show');
-  if (!isError) setTimeout(() => t.classList.remove('show'), 4000);
-}
-function hideToast() { document.getElementById('conn-toast').classList.remove('show'); }
-function showProgress() {
-  const p = document.getElementById('conn-progress');
-  p.style.display = 'block';
-  p.classList.add('active');
-}
-function hideProgress() {
-  const p = document.getElementById('conn-progress');
-  p.classList.remove('active');
-  p.style.display = 'none';
-}
-
 // ── SETTINGS ─────────────────────────────────────────
 function toggleSett(){
   document.getElementById('sett').classList.toggle('open');
+  // Popula lista de vendedores com última DATA ENVIO
   const el = document.getElementById('sett-vendors');
   if (!el) return;
   const vendors = C.sh.filter(v => (DATA[v]||[]).length > 0);
@@ -373,141 +333,58 @@ function saveSett(){
   C.vl = document.getElementById('s-vl').value.trim();
   C.ca = document.getElementById('s-ca').value.trim();
   C.co = document.getElementById('s-co').value.trim();
-  C.mo = document.getElementById('s-mo').value.trim();
-  document.getElementById('sett').classList.remove('open');
+  C.mo = document.getElementById('s-mo').value.trim();  document.getElementById('sett').classList.remove('open');
   loadData();
 }
 
-// ── APPS SCRIPT URL ───────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBDOJhiWCPNGkcWu5YtxS_L_aqyy01SfRIhhQuVTTqxrTJrGVj6IIJJssTTfs62FQV/exec';
+// ── FETCH: CSV primeiro (lê fórmulas), fallback JSONP ────
+// CSV via gviz retorna valores calculados das fórmulas corretamente.
+// JSONP é fallback para quando CSV falhar (ex: file://).
+let _cbIdx = 0;
 
-// ── FETCH: carrega todos de uma vez via action=export ────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwB7c3brDGIEYUqoWhy1yfpnZ3qokDpeRf6xb8jpldGTLOllvTao8yAjPlNUo71WrTt/exec';
+let _asIdx = 0;
+
+// Carrega TODOS os vendedores de uma vez via action=export
 async function loadAllFromAppsScript() {
-  const url = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
-  console.log('%c🔄 Apps Script Export', 'color:#1a3a8c;font-weight:bold', url);
-
-  // AbortController com timer explícito (mais confiável que IIFE)
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 40000);
-
   try {
-    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
-    clearTimeout(timer);
-    console.log('%c📡 HTTP Response', 'color:#888',
-      `status=${r.status} ok=${r.ok} type=${r.type}`);
-
-    if (!r.ok) {
-      console.error(`❌ Apps Script HTTP ${r.status}`);
-      showToast('Apps Script indisponível',
-        `HTTP ${r.status} — Reimplante o Apps Script:<br>
-        <b>Implantar → Gerenciar implantações → Editar → Nova versão</b>`);
-      return null;
-    }
-
-    const txt = await r.text();
-    console.log('%c📦 Raw (primeiros 500)', 'color:#888', txt.slice(0, 500));
-
-    // Detecta resposta HTML (erro de autenticação ou implantação errada)
-    if (txt.trim().startsWith('<!') || txt.trim().startsWith('<html')) {
-      console.error('❌ Apps Script retornou HTML — não está implantado como App da Web público');
-      showToast('Apps Script não configurado',
-        'A implantação retornou uma página HTML em vez de JSON.<br>' +
-        'Verifique: <b>Implantar → Gerenciar → acesso "Qualquer pessoa"</b>');
-      return null;
-    }
-
-    let data;
-    try {
-      data = JSON.parse(txt);
-    } catch(parseErr) {
-      console.error('❌ JSON inválido:', parseErr.message, '\nRaw:', txt.slice(0, 300));
-      showToast('Resposta inválida do Apps Script',
-        `Não foi possível ler o JSON: ${parseErr.message}<br>
-        <small style="opacity:.7">Raw: ${txt.slice(0,80)}</small>`);
-      return null;
-    }
-
-    // Erro explícito do script
-    if (data && data.error) {
-      console.error('❌ Apps Script error:', data.error);
-      showToast('Erro no Apps Script', `${data.error}`);
-      return null;
-    }
-
-    // Formato esperado: { status:'ok', vendedores: { ADRIANO:[...], ... } }
-    if (data && data.status === 'ok' && data.vendedores) {
-      const allNames = Object.keys(data.vendedores);
-      const filtered = {};
-      allNames.forEach(nome => {
-        if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-        else console.log(`⚠️ Aba "${nome}" ignorada (fora da lista)`);
-      });
-      const count = Object.keys(filtered).length;
-      console.log(`%c✅ Export OK: ${count} vendedores`, 'color:#1a8c4e;font-weight:bold',
-        `(${allNames.length} abas na planilha)`);
-      if (count === 0) {
-        showToast('Nenhum vendedor encontrado',
-          `A planilha tem ${allNames.length} aba(s) mas nenhuma corresponde à lista configurada.<br>
-          Abas encontradas: <b>${allNames.join(', ')}</b><br>
-          Lista configurada: <b>${C.sh.join(', ')}</b>`, true);
-      }
-      return filtered;
-    }
-
-    // Formato alternativo: { ADRIANO:[...], ALEX:[...] } (sem wrapper status/vendedores)
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      const keys = Object.keys(data);
-      if (keys.length > 0 && Array.isArray(data[keys[0]])) {
-        console.log('%c✅ Export (formato alternativo)', 'color:#1a8c4e;font-weight:bold', `${keys.length} abas`);
+    const url = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
+    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 30000); return c.signal; })() });
+    if (r.ok) {
+      const txt = await r.text();
+      const data = JSON.parse(txt);
+      if (data && data.status === 'ok' && data.vendedores) {
+        // Filtra apenas vendedores da lista C.sh — ignora abas extras da planilha
         const filtered = {};
-        keys.forEach(nome => { if (C.sh.includes(nome)) filtered[nome] = data[nome]; });
+        Object.keys(data.vendedores).forEach(nome => {
+          if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
+          else console.log(`⚠️ Aba "${nome}" ignorada — não está na lista de vendedores`);
+        });
+        console.log(`✅ Export: ${Object.keys(filtered).length} vendedores carregados (${Object.keys(data.vendedores).length} total na planilha)`);
         return filtered;
       }
     }
-
-    // Resposta desconhecida
-    console.error('❌ Estrutura inesperada:', JSON.stringify(data).slice(0, 300));
-    showToast('Resposta inesperada do Apps Script',
-      `Estrutura não reconhecida. Verifique se o código do Apps Script está correto.<br>
-      <small style="opacity:.7">Primeiros 100 chars: ${JSON.stringify(data).slice(0,100)}</small>`);
-    return null;
-
   } catch(e) {
-    clearTimeout(timer);
-    if (e.name === 'AbortError') {
-      console.error('❌ Timeout 40s — Apps Script não respondeu');
-      showToast('Timeout do Apps Script',
-        'O Apps Script não respondeu em 40 segundos.<br>' +
-        'A planilha pode estar muito grande ou o script com erro de execução.');
-    } else {
-      console.error('❌ Fetch error:', e.name, e.message);
-      showToast('Erro de conexão',
-        `${e.message}<br><small style="opacity:.7">Tipo: ${e.name}</small>`);
-    }
-    return null;
+    console.warn('❌ Export falhou:', e.message);
   }
+  return null;
 }
 
-// ── FETCH INDIVIDUAL (fallback) ───────────────────────
 async function fetchSheet(name) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
-    clearTimeout(timer);
+    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 15000); return c.signal; })() });
     if (r.ok) {
       const data = await r.json();
       if (data?.rows?.length > 0) {
         const rows = parseAppsScript(data, name);
-        console.log(`✅ ${name} — ${rows.length} clientes`);
+        console.log(`✅ ${name} — ${rows.length} clientes | POSIT.MÊS ex: ${rows[0]?.positMes} | META POSIT. ex: ${rows[0]?.metaPos}`);
         return rows;
       }
       console.log(`📭 "${name}": ${data?.error || 'vazio'}`);
       return [];
     }
   } catch(e) {
-    clearTimeout(timer);
     console.warn(`❌ "${name}":`, e.message);
   }
   return [];
@@ -519,10 +396,7 @@ async function fetchSheetCSV(name) {
     `https://docs.google.com/spreadsheets/d/${C.id}/export?format=csv&sheet=${encodeURIComponent(name)}&t=${Date.now()}`,
   ]) {
     try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      const r = await fetch(csvUrl, { signal: ctrl.signal });
-      clearTimeout(timer);
+      const r = await fetch(csvUrl, { signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 12000); return c.signal; })() });
       if (r.ok) {
         const txt = await r.text();
         if (txt && txt.trim().length > 10 && !txt.trim().startsWith('<')) {
@@ -561,9 +435,19 @@ function parseAppsScript(json, vendor) {
 
   console.log(`📊 ${vendor} headers[${headers.length}]:`, headers.join(' | '));
   console.log(`   META FAT.[${iMeta}] META POSIT.[${iMetaPos}] POSIT.MÊS[${iPositMes}] FAT.MÊS[${iVl}]`);
+  if (rows[0]) {
+    const get0 = (i) => i >= 0 ? (rows[0][headers[i]]||'?') : '—';
+    console.log(`   ex row[0]: META FAT.="${get0(iMeta)}" META POSIT.="${get0(iMetaPos)}" POSIT.MÊS="${get0(iPositMes)}" FAT.MÊS="${get0(iVl)}"`);
+  }
 
   const get = (row, key) => key ? (row[key] || '').trim() : '';
   const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+
+  // Log primeiras 3 linhas de DIAS VENDA para debug
+  if (iDv >= 0) {
+    const samples = rows.slice(0,3).map(r => `"${r[headers[iDv]] ?? '(null)'}"`).join(', ');
+    console.log(`   ${vendor} DIAS VENDA amostras:`, samples);
+  }
 
   const result = [];
   for (const row of rows) {
@@ -597,11 +481,13 @@ function parseAppsScript(json, vendor) {
 
 // ── CSV PARSER ───────────────────────────────────────────
 function parseCSV(txt, vendor) {
-  if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
+  if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1); // BOM
   const lines = txt.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
 
   const firstLine = lines[0];
+
+  // Auto-detecta delimitador testando ambos e escolhendo o que gera mais colunas
   const tryDelim = (d) => {
     const res = []; let cur = ''; let q = false;
     for (let i = 0; i < firstLine.length; i++) {
@@ -613,7 +499,10 @@ function parseCSV(txt, vendor) {
     res.push(cur);
     return res.length;
   };
-  const delim = tryDelim(';') > tryDelim(',') ? ';' : ',';
+  const colsComma     = tryDelim(',');
+  const colsSemicolon = tryDelim(';');
+  const delim = colsSemicolon > colsComma ? ';' : ',';
+  console.log(`📋 ${vendor}: delim="${delim}" cols_vírgula=${colsComma} cols_ponto-vírgula=${colsSemicolon}`);
 
   const splitLine = (line) => {
     const res = []; let cur = ''; let q = false;
@@ -641,6 +530,11 @@ function parseCSV(txt, vendor) {
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
+  // Debug: mostra colunas e índices no console
+  console.log(`📋 ${vendor}:`, headers.join(' | '));
+  console.log(`   DIAS VENDA="${C.dv}" → idx:${iDv} | DIAS CONTATO="${C.co}" → idx:${iCo}`);
+  if (iDv >= 0) console.log(`   Ex. diasVenda row1:`, lines[1] ? splitLine(lines[1])[iDv] : '?');
+
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
   const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
 
@@ -650,6 +544,8 @@ function parseCSV(txt, vendor) {
     const clientRaw = get(c, iCl);
     const dateStr   = get(c, iDt);
     if (!clientRaw && !dateStr) continue;
+    const motivoNV  = get(c, iMo);
+    const motivoMot = get(c, iMo2);
     rows.push({
       vendor,
       client:     clientRaw.replace(/\.0+$/, ''),
@@ -657,13 +553,13 @@ function parseCSV(txt, vendor) {
       dateRaw:    dateStr,
       date:       pDate(dateStr),
       value:      num(get(c, iVl)),
-      meta:       num(get(c, iMeta)),
+      meta:       num(get(c, iMeta)) * 1000,
       metaPos:    num(get(c, iMetaPos)),
       positMes:   num(get(c, iPositMes)),
       diasVenda:  get(c, iDv),
       carteira:   get(c, iCa),
       contato:    get(c, iCo),
-      motivo:     [get(c,iMo), get(c,iMo2)].filter(v => v && v.trim()).join(' | '),
+      motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
       _via:       'csv',
       _rawCols:   c,
       _iDv:       iDv,
@@ -673,15 +569,134 @@ function parseCSV(txt, vendor) {
   return rows;
 }
 
-// ── pDate ──────────────────────────────────────────────
+function splitCSV(line) {
+  const res = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (q && line[i+1]==='"') { cur+='"'; i++; } else q=!q; }
+    else if (ch === ',' && !q) { res.push(cur); cur=''; }
+    else cur += ch;
+  }
+  res.push(cur);
+  return res;
+}
+
+// Converte resposta gviz JSON → rows
+function parseGviz(resp, vendor) {
+  const tbl = resp && resp.table;
+  if (!tbl || !tbl.cols || !tbl.rows) return [];
+
+  const cols = tbl.cols.map(c => (c.label || c.id || '').trim());
+  DATA['__cols__' + vendor] = cols;
+
+  const fi = (name) => {
+    const n = name.toLowerCase();
+    let i = cols.findIndex(h => h.toLowerCase() === n);
+    if (i < 0) i = cols.findIndex(h => h.toLowerCase().includes(n.slice(0, 6)));
+    return i;
+  };
+
+  const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
+        iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
+
+  // Helpers para ler células gviz
+  const gStr = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    if (!cell) return '';
+    const f = cell.f != null ? String(cell.f).trim() : '';
+    const v = cell.v != null ? String(cell.v).trim() : '';
+    return f || v;
+  };
+  // gStrFull: para campos com múltiplos valores (ex: "2;3;4;6") — lê todas as propriedades
+  const gStrFull = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    if (!cell) return '';
+    // Tenta todas as propriedades possíveis do gviz
+    for (const key of ['v', 'f', 'p']) {
+      const val = cell[key];
+      if (val != null && String(val).trim()) return String(val).trim();
+    }
+    return '';
+  };
+  const gStrRaw = (row, i) => {
+    if (i < 0) return '';
+    const cell = (row.c || [])[i];
+    return (cell && cell.v != null) ? String(cell.v).trim() : '';
+  };
+  // lastVal: extrai último valor de campos com formato "X;Y;ZZ" (pega o mais recente)
+  const lastVal = (s) => {
+    if (!s || !s.trim()) return '';
+    const parts = s.split(';').map(p => p.trim()).filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : s;
+  };
+  // gNum: lê número preferindo cell.f formatado (preserva separadores de milhar BR)
+  const gNum = (row, i) => {
+    if (i < 0) return 0;
+    const cell = (row.c || [])[i];
+    if (!cell || cell.v == null) return 0;
+    // Sempre tenta cell.f primeiro — tem o número com formatação original da planilha
+    const fStr = (cell.f != null) ? String(cell.f).trim() : '';
+    if (fStr) {
+      // Remove R$, espaços; remove pontos de milhar; troca vírgula decimal por ponto
+      return parseFloat(fStr.replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+    }
+    // Sem cell.f: usa cell.v (número JS nativo do gviz)
+    if (typeof cell.v === 'number') return cell.v;
+    return parseFloat(String(cell.v).replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+  };
+  const gDate = (row, i) => {
+    if (i < 0) return null;
+    const cell = (row.c || [])[i];
+    if (!cell) return null;
+    if (typeof cell.v === 'string' && cell.v.startsWith('Date(')) {
+      const m = cell.v.match(/Date\((\d+),(\d+),(\d+)\)/);
+      if (m) return new Date(+m[1], +m[2], +m[3]);
+    }
+    return pDate(cell.f ? String(cell.f) : (cell.v != null ? String(cell.v) : ''));
+  };
+
+  const rows = [];
+  for (const row of tbl.rows) {
+    const clientRaw = gStr(row, iCl);
+    const dateStr   = gStr(row, iDt);
+    if (!clientRaw && !dateStr) continue;
+    const motivoNV  = gStr(row, iMo);
+    const motivoMot = gStr(row, iMo2);
+    rows.push({
+      vendor,
+      client:     clientRaw.replace(/\.0+$/, ''),
+      clientName: gStr(row, iCn),
+      dateRaw:    dateStr,
+      date:       gDate(row, iDt),
+      value:      gNum(row, iVl),
+      meta:       gNum(row, iMeta) * 1000,
+      metaPos:    gNum(row, iMetaPos),
+      positMes:   gNum(row, iPositMes),
+      diasVenda:  gStrFull(row, iDv),
+      carteira:   gStr(row, iCa),
+      contato:    gStrFull(row, iCo),
+      motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+    });
+  }
+  return rows;
+}
+
+
+// ── pDate — parser de data com hora para dedup preciso ─
 function pDate(s){
   if(!s) return null;
   s = String(s).trim();
+  // DD/MM/YYYY HH:MM — guarda hora para desempate no dedup
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
   if(m){
     const y   = m[3].length===2 ? '20'+m[3] : m[3];
     const hh  = m[4] ? m[4].padStart(2,'0') : '00';
     const mm  = m[5] ? m[5].padStart(2,'0') : '00';
+    // dateOnly: meia-noite — usado para agrupar por dia no gráfico
+    // date: timestamp completo — usado no dedup para pegar o mais recente do dia
     return new Date(`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh}:${mm}:00`);
   }
   m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
@@ -689,57 +704,66 @@ function pDate(s){
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
-
-// ── HARD REFRESH ─────────────────────────────────────
-function hardRefresh(){
-  // Limpa caches do browser e recarrega forçado (equivalente a Ctrl+Shift+R)
-  if('caches' in window){
-    caches.keys().then(names => names.forEach(n => caches.delete(n)));
-  }
-  window.location.reload(true);
+function pMoney(s){
+  if(!s)return 0;
+  return parseFloat(s.replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.'))||0;
 }
 
 // ── LOAD ──────────────────────────────────────────────
 async function loadData(){
   const btn = document.getElementById('btn-ref');
   btn.classList.add('ld');
-  setLoad(); hideErr(); hideToast();
-  showProgress();
+  setLoad(); hideErr();
   DATA = {};
 
   const allCandidates = C.sh;
 
-  // Tenta carregar todos de uma vez via action=export
+  // Tenta carregar todos de uma vez via action=export (mais eficiente, sem redirect issues)
   const exportData = await loadAllFromAppsScript();
 
   if (exportData) {
+    // Usa dados do export diretamente
     allCandidates.forEach(name => {
       const vendorRows = exportData[name];
       if (vendorRows && vendorRows.length > 0) {
         const headers = Object.keys(vendorRows[0]);
         DATA['__cols__' + name] = headers;
+        console.log(`📋 ${name} headers:`, headers.join(' | '));
+        if (vendorRows[0]) console.log(`   META FAT.="${vendorRows[0]['META FAT.']||'?'}" | META POSIT.="${vendorRows[0]['META POSIT.']||'?'}" | POSIT. MÊS="${vendorRows[0]['POSIT. MÊS']||'?'}"`);
         DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
-        console.log(`✅ ${name} — ${DATA[name].length} clientes | meta=${DATA[name][0]?.meta} metaPos=${DATA[name][0]?.metaPos}`);
+        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes | meta=${DATA[name][0]?.meta} metaPos=${DATA[name][0]?.metaPos} positMes=${DATA[name][0]?.positMes}`);
       } else {
         DATA[name] = [];
       }
     });
   } else {
-    console.warn('⚠️ Export falhou — todos os vendedores sem dados');
+    console.warn('Export falhou');
     allCandidates.forEach(name => { DATA[name] = []; });
   }
 
-  // Remove abas com fallback (mesmo nº de clientes = provavelmente aba errada)
-  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATEUS','NOA','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
+  // Filtra abas com dados
+  // Remove fallbacks: Google retorna outra aba quando a pedida não existe
+  // Detecta pelo número exato de clientes — abas reais têm contagens únicas
   const countMap = {};
   allCandidates.forEach(v => {
     const n = (DATA[v]||[]).length;
-    if (n > 0) { if (!countMap[n]) countMap[n] = []; countMap[n].push(v); }
+    if (n > 0) {
+      if (!countMap[n]) countMap[n] = [];
+      countMap[n].push(v);
+    }
   });
+
+  // Se múltiplas abas têm exatamente o mesmo nº de clientes, mantém só a que
+  // está na lista sh original (C.sh) — as outras são fallback
+  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','LEANDRO','LUCAS','MATEUS','RAFAEL','ROSANE','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
   Object.values(countMap).forEach(vendors => {
     if (vendors.length > 1) {
+      // Prefere o que está na lista original; se empate, mantém o último
+      const real = vendors.filter(v => shOriginal.includes(v));
       const fake = vendors.filter(v => !shOriginal.includes(v));
+      // Se há um real e vários falsos, zera os falsos
       fake.forEach(v => { DATA[v] = []; console.warn(`"${v}" zerado (fallback)`); });
+      // Se há múltiplos reais com mesmo nº, mantém todos (podem ter dados diferentes)
     }
   });
 
@@ -747,18 +771,10 @@ async function loadData(){
   C.sh = activeSheets.length > 0 ? activeSheets : shOriginal;
   console.log('✅ Abas ativas:', C.sh.join(', '));
 
-  hideProgress();
   btn.classList.remove('ld');
   document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
-
   const totalRows = C.sh.reduce((a,v) => a + (DATA[v]||[]).length, 0);
-  if (totalRows === 0) {
-    showErr('⚠️ Nenhum dado carregado. Verifique o Apps Script e o compartilhamento da planilha.');
-  } else {
-    hideToast(); // Fecha toast de erro se carregou com sucesso
-    console.log(`%c🎉 Total: ${totalRows} registros carregados`, 'color:#1a8c4e;font-weight:bold;font-size:14px');
-  }
-
+  if (totalRows === 0) showErr('⚠️ Nenhum dado carregado. Verifique o compartilhamento da planilha.');
   document.getElementById('dbar').style.display = 'flex';
   buildTabs(); render();
 }
@@ -781,16 +797,22 @@ function applyDates(){
   D_TO=t?new Date(t+'T23:59:59'):null;
   render();
 }
+// Extrai todos os dias de uma string como "5-12-20-28"
 function parseDays(str) {
   if (!str || str === '0') return [];
   return String(str).split(/[-;,]/).map(d => parseInt(d.trim())).filter(d => !isNaN(d) && d > 0);
 }
+
+// Retorna o dia mais recente presente nos dados (em DIAS VENDA ou DIAS CONTATO)
+// da DATA ENVIO mais recente
 function getMaxDay(rows) {
+  // Pega a data mais recente
   const maxDate = rows.reduce((max, r) => {
     const d = r.date ? r.date.toISOString().slice(0,10) : '';
     return d > max ? d : max;
   }, '');
   if (!maxDate) return null;
+  // Entre os registros com data mais recente, pega o maior dia de DIAS VENDA/CONTATO
   const recentRows = rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
   let maxDay = 0;
   recentRows.forEach(r => {
@@ -800,8 +822,14 @@ function getMaxDay(rows) {
   });
   return maxDay > 0 ? { maxDate, maxDay } : null;
 }
+
+// Filtra por DATA ENVIO — usado para Não Venda que não tem DIAS VENDA/CONTATO
 function fltPeriodByDate(rows){
   if(PERIOD==='all') return rows;
+  if(PERIOD==='hoje'){
+    const hoje = new Date().toISOString().slice(0,10);
+    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === hoje);
+  }
   if(PERIOD==='custom'){
     return rows.filter(r=>{
       if(!r.date) return false;
@@ -815,6 +843,7 @@ function fltPeriodByDate(rows){
     const ini = new Date(now.getFullYear(), now.getMonth(), 1);
     return rows.filter(r => r.date && r.date >= ini);
   }
+  // Últ. Dia e N dias — usa DATA ENVIO mais recente
   const maxDate = rows.reduce((max, r) => {
     const d = r.date ? r.date.toISOString().slice(0,10) : '';
     return d > max ? d : max;
@@ -825,8 +854,15 @@ function fltPeriodByDate(rows){
   const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
   return rows.filter(r => r.date && r.date >= cut);
 }
+
 function fltPeriod(rows){
   if(PERIOD==='all') return rows;
+
+  if(PERIOD==='hoje'){
+    const hoje = new Date().toISOString().slice(0,10);
+    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === hoje);
+  }
+
   if(PERIOD==='custom'){
     return rows.filter(r=>{
       if(!r.date) return false;
@@ -835,16 +871,21 @@ function fltPeriod(rows){
       return true;
     });
   }
+
   if(PERIOD==='mtd'){
+    // MTD: clientes que têm qualquer dia preenchido no mês atual
     const now = new Date();
     const ini = new Date(now.getFullYear(), now.getMonth(), 1);
     return rows.filter(r => r.date && r.date >= ini);
   }
+
+  // Últ. Dia = dia anterior ao maior dia de DIAS VENDA/CONTATO da DATA ENVIO mais recente
   if(PERIOD==='1'){
     const info = getMaxDay(rows);
     if (!info) return rows;
     const prevDay = info.maxDay - 1;
     if (prevDay <= 0) return [];
+    // Filtra registros da data mais recente que têm prevDay em DIAS VENDA ou DIAS CONTATO
     return rows.filter(r => {
       if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
@@ -852,10 +893,19 @@ function fltPeriod(rows){
       return dvDays.includes(prevDay) || coDays.includes(prevDay);
     });
   }
+
+  // N dias: filtra por dia N presente em DIAS VENDA ou DIAS CONTATO
   if(!isNaN(parseInt(PERIOD))){
+    // Usa a data mais recente dos dados como referência
+    const maxDate = rows.reduce((max, r) => {
+      const d = r.date ? r.date.toISOString().slice(0,10) : '';
+      return d > max ? d : max;
+    }, '');
+    const nDias = parseInt(PERIOD);
+    // Pega os últimos N dias presentes em DIAS VENDA/CONTATO
     const info = getMaxDay(rows);
     if (!info) return rows;
-    const cutDay = info.maxDay - parseInt(PERIOD) + 1;
+    const cutDay = info.maxDay - nDias + 1;
     return rows.filter(r => {
       if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
@@ -863,6 +913,7 @@ function fltPeriod(rows){
       return [...dvDays, ...coDays].some(d => d >= cutDay && d <= info.maxDay);
     });
   }
+
   return rows;
 }
 
@@ -885,7 +936,7 @@ function buildTabs(){
   });
 }
 
-// ── STATUS ───────────────────────────────────────────
+// ── STATUS — mesma prioridade dos KPIs ───────────────
 function status(r){
   if(r.value>0)                                          return 'positivado';
   if(r.motivo&&r.motivo.trim())                          return 'nao_venda';
@@ -894,6 +945,7 @@ function status(r){
   return null;
 }
 
+// Keep most recent row per (vendor+client)
 function dedup(rows){
   const m=new Map();
   for(const r of rows){
@@ -914,9 +966,11 @@ function render(){
     ? getGroupVendors().flatMap(v => getRaw(v))
     : getRaw(ACTIVE);
 
+  // ── Deduplica por (vendor + cliente) mantendo data mais recente — para KPIs de contagem
   const dd   = dedup(allRaw);
   const rows = fltPeriod(dd);
 
+  // ── Dedup GLOBAL por cliente (sem vendor) — 1 linha por cliente, a mais recente
   const dedupGlobalFn = (arr) => {
     const m = new Map();
     for (const r of arr) {
@@ -932,29 +986,47 @@ function render(){
   };
   const rowsFinanceiro = dedupGlobalFn(rows);
 
+  // ── FATURAMENTO: soma FAT.MÊS de todos os clientes positivados (FAT.MÊS > 0)
+  // Independente de DIAS VENDA — usa registro mais recente por cliente
+  const hasDiasVenda = (r) => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
   const totVal  = rowsFinanceiro.filter(r => r.value > 0).reduce((a,r) => a + (r.value || 0), 0);
+  const totMeta = rowsFinanceiro.reduce((a,r) => a + (r.meta || 0), 0);
 
+  // ── KPIs de contagem
   const cntPos  = rows.filter(r => r.value > 0).length;
+  // NÃO VENDA filtra por DATA ENVIO (não por DIAS VENDA/CONTATO)
   const rowsByDate = fltPeriodByDate(dd);
   const cntNav  = rowsByDate.filter(r => r.motivo && r.motivo.trim()).length;
   const cntCon  = rows.filter(r => r.contato && r.contato.trim()).length;
+  // CARTEIRA: todos os grupos com SIM na data mais recente (não depende de DIAS VENDA/CONTATO)
   const cntCar  = dd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
+  // VENDA = contagem distinta de grupos com DIAS VENDA preenchido
   const cntVen  = rows.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length;
 
+  const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
   const total = rows.length;
 
   // ── Evolução diária
+  // Usa os dias específicos das colunas DIAS CONTATO e DIAS VENDA
+  // Ex: DIAS CONTATO = "5-12-20-28" → cliente aparece nos dias 5, 12, 20 e 28
   const evoRaw = fltPeriod(allRaw);
+
   const byD = {};
+
+  // Extrai o mês/ano da data mais recente dos dados para montar as datas completas
   const refDate = evoRaw.reduce((max, r) => r.date && r.date > max ? r.date : max, new Date(0));
   const refYear  = refDate.getFullYear();
-  const refMonth = refDate.getMonth();
+  const refMonth = refDate.getMonth(); // 0-based
+
   const getDayKey = (day) => {
     const d = new Date(refYear, refMonth, parseInt(day));
     return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
   };
+
   evoRaw.forEach(r => {
     const clientKey = (r.vendor||'') + '::' + r.client;
+
+    // Expande DIAS CONTATO
     const coStr = String(r.contato || '').trim();
     if (coStr && coStr !== '0') {
       coStr.split(/[-;,]/).map(d => d.trim()).filter(Boolean).forEach(day => {
@@ -964,6 +1036,8 @@ function render(){
         byD[k].contato.add(clientKey);
       });
     }
+
+    // Expande DIAS VENDA
     const dvStr = String(r.diasVenda || '').trim();
     if (dvStr && dvStr !== '0') {
       dvStr.split(/[-;,]/).map(d => d.trim()).filter(Boolean).forEach(day => {
@@ -971,10 +1045,17 @@ function render(){
         if (!k) return;
         if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
         byD[k].positivado.add(clientKey);
+        // DEBUG dia 30
+        if (parseInt(day) === 30) console.log(`🔍 DIA 30 VENDA: ${clientKey} | diasVenda="${dvStr}"`);
       });
     }
   });
-  Object.values(byD).forEach(d => { d.contato = d.contato.size; d.positivado = d.positivado.size; });
+
+  // Converte Sets para contagens
+  Object.values(byD).forEach(d => {
+    d.contato    = d.contato.size;
+    d.positivado = d.positivado.size;
+  });
   const dKeys = Object.keys(byD).sort();
 
   // ── Vendor stats
@@ -996,7 +1077,7 @@ function render(){
   const mc=document.getElementById('mc');
   mc.innerHTML='';mc.className='fin';
 
-  // ── MTD sempre acumulado do mês
+  // ── FATURAMENTO MTD e POSITIVADO MTD — sempre acumulado do mês, sem filtro de período
   const ddAll = dedup(allRaw);
   const rowsMtd = ddAll.filter(r => {
     if (!r.date) return false;
@@ -1004,10 +1085,13 @@ function render(){
     return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const rowsFinanceiroMtd = dedupGlobalFn(rowsMtd);
-  const totValMtd  = rowsFinanceiroMtd.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0);
-  const maxMetaFat = rowsFinanceiroMtd.reduce((a,r) => a + (r.meta||0), 0);
-  const ating      = maxMetaFat > 0 ? Math.round((totValMtd / maxMetaFat) * 100) : null;
+  const totValMtd    = rowsFinanceiroMtd.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0);
+  const maxMetaFat   = rowsFinanceiroMtd.reduce((a,r) => a + (r.meta||0), 0);
+  const ating        = maxMetaFat > 0 ? Math.round((totValMtd / maxMetaFat) * 100) : null;
 
+  // POSIT. MTD e META POSIT.: calcula por vendedor e soma
+  // — META POSIT. = máximo por vendedor (mesmo valor em todas as linhas do vendedor)
+  // — POSIT. MÊS  = soma por vendedor (varia por dia, acumulado do mês)
   const vendorsAtivos = getGroupVendors().filter(v => (DATA[v]||[]).length > 0);
   let totalMetaPos = 0;
   let totalPositMes = 0;
@@ -1017,20 +1101,25 @@ function render(){
       const now = new Date();
       return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
     });
-    totalMetaPos  += vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
-    totalPositMes += vRowsMtd.reduce((a,r) => a + (r.positMes||0), 0);
+    const vMetaPos  = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    const vPositMes = vRowsMtd.reduce((a,r) => a + (r.positMes||0), 0);
+    totalMetaPos  += vMetaPos;
+    totalPositMes += vPositMes;
   });
-  const pctPos = totalMetaPos > 0 ? Math.round((totalPositMes / totalMetaPos) * 100) : null;
+  const sumPositMes = totalPositMes;
+  const pctPos      = totalMetaPos > 0 ? Math.round((totalPositMes / totalMetaPos) * 100) : null;
 
+  // ── KPIs linha 1 — respeitam filtro de período
   const kpisRow1 = [
     {ico:'💼', lbl:'Carteira',   sub:'Grupos Comerciais', val:cntCar, kc:'var(--g-car)'},
     {ico:'📞', lbl:'Contato',    sub:'Grupos Comerciais', val:cntCon, kc:'var(--blue)'},
     {ico:'🛒', lbl:'Venda',      sub:'Grupos Comerciais', val:cntVen, kc:'var(--g-pos)'},
     {ico:'❌', lbl:'Não Venda',  sub:'Grupos Comerciais', val:cntNav, kc:'var(--red)'},
   ];
+  // ── KPIs linha MTD — sempre acumulado do mês
   const kpisRow2 = [
     {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), kc:'var(--blue2)', lg:true, ating},
-    {ico:'✅', lbl:'Positivado MTD',  val:totalPositMes||cntPos, kc:'var(--g-pos)', lg:true, ating:pctPos},
+    {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, kc:'var(--g-pos)', lg:true, ating:pctPos},
   ];
 
   const kpiHtml = (k) => `
@@ -1049,6 +1138,7 @@ function render(){
         </div>` : ''}
     </div>`;
 
+  // Renderiza MTD cards no mtd-bar (acima do filtro de período)
   const mtdBar = document.getElementById('mtd-bar');
   const mtdCards = document.getElementById('mtd-cards');
   if (mtdBar && mtdCards) {
@@ -1061,6 +1151,7 @@ function render(){
       ${kpisRow1.map(kpiHtml).join('')}
     </div>`;
 
+  // ── GRÁFICO + FUNIL lado a lado
   mc.innerHTML+=`
   <div style="display:grid;grid-template-columns:1fr 260px 260px;gap:18px;margin-bottom:22px">
     <div class="ch-card">
@@ -1077,6 +1168,7 @@ function render(){
     </div>
   </div>`;
 
+  // Vendor breakdown — ordem alfabética, mini na ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA
   if(ACTIVE==='all'){
     const MINI_ORDER = [
       { key:'em_carteira', lbl:'Carteira',   col:'#b87a00' },
@@ -1107,6 +1199,9 @@ function render(){
       </div>`;}).join('')}</div>`;
   }
 
+  // Table — dedup global por cliente, sempre usando o registro mais recente
+  // Usa allRaw (sem filtro de período) para garantir que o mais recente é sempre considerado
+  // Depois aplica filtro de período para exibição se necessário
   const dedupGlobal = (rows) => {
     const m = new Map();
     for (const r of rows) {
@@ -1121,7 +1216,7 @@ function render(){
     return Array.from(m.values());
   };
 
-  const rawForTable = dedupGlobal(allRaw)
+  const rawForTable = dedupGlobal(allRaw)  // allRaw = todos os registros, dedup pega o mais recente
     .sort((a,b) => (b.value || 0) - (a.value || 0));
 
   mc.innerHTML+=`
@@ -1160,37 +1255,85 @@ function render(){
   requestAnimationFrame(()=>{
     buildEvo(dKeys,byD);
     buildFunil(cntCar, cntCon, cntVen, cntNav, total);
-    buildMotivos(rowsByDate);
+    buildMotivos(rowsByDate);  // Não Venda filtra por DATA ENVIO
     drawTbl(rawForTable);
   });
 }
 
-// ── EVO CHART ────────────────────────────────────────
+// ── EVO CHART — linhas de Contatos e Positivados por data ────────
 function buildEvo(dKeys, byD){
   const ctx = document.getElementById('cevo'); if(!ctx) return;
   if(CH){ CH.destroy(); CH=null; }
-  const labels    = dKeys.map(d => { const dt = new Date(d+'T12:00:00'); return dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); });
+
+  const labels    = dKeys.map(d => {
+    const dt = new Date(d+'T12:00:00');
+    return dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  });
   const dataContat = dKeys.map(d => byD[d].contato    || 0);
   const dataPosit  = dKeys.map(d => byD[d].positivado || 0);
+
   CH = new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label:'Contatos',   data:dataContat, borderColor:'#1a3a8c', backgroundColor:'rgba(26,58,140,.10)', borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#1a3a8c', pointHoverRadius:6, tension:0.4, fill:false },
-        { label:'Positivados',data:dataPosit,  borderColor:'#1a8c4e', backgroundColor:'rgba(26,140,78,.10)',  borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#1a8c4e', pointHoverRadius:6, tension:0.4, fill:false }
+        {
+          label: 'Contatos',
+          data: dataContat,
+          borderColor: '#1a3a8c',
+          backgroundColor: 'rgba(26,58,140,.10)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#1a3a8c',
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: false,
+        },
+        {
+          label: 'Positivados',
+          data: dataPosit,
+          borderColor: '#1a8c4e',
+          backgroundColor: 'rgba(26,140,78,.10)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#1a8c4e',
+          pointHoverRadius: 6,
+          tension: 0.4,
+          fill: false,
+        }
       ]
     },
     options: {
-      responsive:true, maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{display:true,position:'top',labels:{color:'#4a5878',font:{family:'Montserrat',size:12,weight:'600'},boxWidth:14,padding:20}},
-        tooltip:{backgroundColor:'#0f1f4a',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#fff',bodyColor:'rgba(255,255,255,.8)',titleFont:{family:'Montserrat',size:12,weight:'700'},bodyFont:{family:'Roboto Mono',size:11},padding:12}
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { color:'#4a5878', font:{family:'Montserrat',size:12,weight:'600'}, boxWidth:14, padding:20 }
+        },
+        tooltip: {
+          backgroundColor: '#0f1f4a',
+          borderColor: 'rgba(255,255,255,.1)',
+          borderWidth: 1,
+          titleColor: '#fff',
+          bodyColor: 'rgba(255,255,255,.8)',
+          titleFont: {family:'Montserrat',size:12,weight:'700'},
+          bodyFont: {family:'Roboto Mono',size:11},
+          padding: 12,
+        }
       },
-      scales:{
-        y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#8a97b8',font:{family:'Roboto Mono',size:10},stepSize:1}},
-        x:{grid:{color:'rgba(0,0,0,.04)'},ticks:{color:'#8a97b8',font:{family:'Roboto Mono',size:10},maxTicksLimit:16,maxRotation:45}}
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color:'rgba(0,0,0,.05)' },
+          ticks: { color:'#8a97b8', font:{family:'Roboto Mono',size:10}, stepSize:1 }
+        },
+        x: {
+          grid: { color:'rgba(0,0,0,.04)' },
+          ticks: { color:'#8a97b8', font:{family:'Roboto Mono',size:10}, maxTicksLimit:16, maxRotation:45 }
+        }
       }
     }
   });
@@ -1198,19 +1341,24 @@ function buildEvo(dKeys, byD){
 
 // ── FUNIL VISUAL ──────────────────────────────────────
 function buildFunil(cntCar, cntCon, cntVen, cntNav, total){
-  const el = document.getElementById('funil-wrap'); if (!el) return;
+  const el = document.getElementById('funil-wrap');
+  if (!el) return;
+
   const stages = [
     { lbl:'Carteira',  val:cntCar, col:'#b87a00', ico:'💼' },
     { lbl:'Contato',   val:cntCon, col:'#1a3a8c', ico:'📞' },
     { lbl:'Venda',     val:cntVen, col:'#1a8c4e', ico:'🛒' },
     { lbl:'Não Venda', val:cntNav, col:'#cc1a1a', ico:'❌' },
   ];
+
   const max = Math.max(...stages.map(s=>s.val), 1);
+
   el.innerHTML = stages.map((s, i) => {
     const pct  = total > 0 ? ((s.val / total) * 100).toFixed(0) : 0;
     const barW = ((s.val / max) * 100).toFixed(0);
+    // Funil: cada estágio é um pouco mais estreito
     const marginPx = i * 10;
-    return `<div style="margin:0 ${marginPx}px">
+    return `<div style="margin:0 ${marginPx}px;transition:margin .4s">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:13px">${s.ico}</span>
@@ -1230,20 +1378,30 @@ function buildFunil(cntCar, cntCon, cntVen, cntNav, total){
 
 // ── MOTIVOS NÃO VENDA ─────────────────────────────────
 function buildMotivos(rows) {
-  const el = document.getElementById('motivos-wrap'); if (!el) return;
+  const el = document.getElementById('motivos-wrap');
+  if (!el) return;
+
+  // Conta ocorrências de cada motivo
   const counts = {};
   rows.forEach(r => {
     const m = (r.motivo || '').trim();
     if (!m) return;
+    // Separa múltiplos motivos por " | "
     m.split('|').forEach(part => {
       const p = part.trim();
       if (p && !['SIM','NÃO','NAO','S','N'].includes(p.toUpperCase())) counts[p] = (counts[p] || 0) + 1;
     });
   });
+
   const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8);
-  if (!sorted.length) { el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center">Nenhum motivo registrado</div>`; return; }
+  if (!sorted.length) {
+    el.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center">Nenhum motivo registrado</div>`;
+    return;
+  }
+
   const max = sorted[0][1];
   const colors = ['#cc1a1a','#e05c1a','#d4860a','#b87a00','#8a6500','#6b4f00','#4a3800','#2e2400'];
+
   el.innerHTML = sorted.map(([motivo, cnt], i) => {
     const pct  = ((cnt / rows.filter(r=>r.motivo&&r.motivo.trim()).length) * 100).toFixed(0);
     const barW = ((cnt / max) * 100).toFixed(0);
@@ -1266,17 +1424,23 @@ function drawTbl(rows, noUpdate){
   const tb = document.getElementById('tb'); if(!tb) return;
   const showV = ACTIVE==='all';
   const sm = {positivado:STAGES[0], nao_venda:STAGES[1], em_contato:STAGES[2], em_carteira:STAGES[3]};
+
   if(!rows.length){
     tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
     return;
   }
+
   tb.innerHTML = rows.slice(0,300).map(r => {
     const sk  = status(r);
     const st  = sk ? sm[sk] : null;
-    const bdg = st ? `<span class="badge" style="background:${st.bg};color:${st.col}">${st.lbl}</span>` : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
+    const bdg = st
+      ? `<span class="badge" style="background:${st.bg};color:${st.col}">${st.lbl}</span>`
+      : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
     const car = (r.carteira||'').toLowerCase().trim();
     return `<tr>
-      <td>${r.clientName ? `<div style="font-weight:600">${r.clientName}</div><div style="font-size:10px;color:var(--text3)">${r.client||''}</div>` : (r.client||'—')}</td>
+      <td>
+        ${r.clientName ? `<div style="font-weight:600">${r.clientName}</div><div style="font-size:10px;color:var(--text3)">${r.client||''}</div>` : (r.client||'—')}
+      </td>
       ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
       <td>${bdg}</td>
       <td style="font-family:'Roboto Mono',monospace;color:${r.value>0?'#1a8c4e':'var(--text2)'};font-weight:${r.value>0?700:400}">${r.value>0?fBRL(r.value):'—'}</td>
@@ -1287,140 +1451,288 @@ function drawTbl(rows, noUpdate){
       <td style="color:var(--red);font-weight:${r.motivo?600:400}">${r.motivo||'—'}</td>
     </tr>`;
   }).join('');
-  if(rows.length>300) tb.innerHTML+=`<tr><td colspan="9" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Exibindo 300 de ${rows.length} registros</td></tr>`;
+
+  if(rows.length>300)
+    tb.innerHTML+=`<tr><td colspan="9" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Exibindo 300 de ${rows.length} registros</td></tr>`;
 }
-function fltTbl(q){ applyTblFilters(q, _activeStg); }
+function fltTbl(q){
+  applyTblFilters(q, _activeStg);
+}
+
 let _activeStg = 'all';
+
 function setStgFilter(stg, el){
   _activeStg = stg;
   document.querySelectorAll('.stg-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   applyTblFilters(document.getElementById('tq')?.value || '', stg);
 }
+
 function applyTblFilters(q, stg){
   let filtered = _rows;
-  if(stg && stg !== 'all') filtered = filtered.filter(r => status(r) === stg);
-  if(q && q.trim()){ const lq = q.toLowerCase(); filtered = filtered.filter(r => (r.client||'').toLowerCase().includes(lq)||(r.vendor||'').toLowerCase().includes(lq)||(r.motivo||'').toLowerCase().includes(lq)); }
-  drawTbl(filtered, true);
+  // Filtro de etapa
+  if(stg && stg !== 'all'){
+    filtered = filtered.filter(r => status(r) === stg);
+  }
+  // Filtro de texto
+  if(q && q.trim()){
+    const lq = q.toLowerCase();
+    filtered = filtered.filter(r =>
+      (r.client||'').toLowerCase().includes(lq) ||
+      (r.vendor||'').toLowerCase().includes(lq) ||
+      (r.motivo||'').toLowerCase().includes(lq)
+    );
+  }
+  drawTbl(filtered, true); // true = não atualiza _rows
 }
 
-// ── HELPERS ──────────────────────────────────────────
 function searchClient(){
   const q = (document.getElementById('dbg-client-search').value||'').trim().toLowerCase();
   const res = document.getElementById('dbg-client-result');
   if (!q) { res.innerHTML='<span style="color:#888">Digite um código</span>'; return; }
+
   const activeVendors = ACTIVE==='all' ? C.sh.filter(v=>(DATA[v]||[]).length>0) : [ACTIVE];
   const allRows = activeVendors.flatMap(v => (DATA[v]||[]).map(r=>({...r,vendor:v})));
   const found = allRows.filter(r => (r.client||'').toLowerCase().includes(q));
-  if (!found.length) { res.innerHTML = `<span style="color:#ff6b6b">Nenhum registro encontrado para "${q}"</span>`; return; }
+
+  if (!found.length) {
+    res.innerHTML = `<span style="color:#ff6b6b">Nenhum registro encontrado para "${q}"</span>`;
+    return;
+  }
+
   res.innerHTML = `<div style="color:#ffb800;font-weight:700;margin-bottom:8px">${found.length} registro(s) para "${q}":</div>` +
     found.map((r,i) => {
       const dvRaw  = r.diasVenda || '—';
       const coRaw  = r.contato   || '—';
+      const valRaw = r.value;
       const headers = DATA['__cols__'+r.vendor] || [];
       const dvKey  = r._iDv >= 0 ? (headers[r._iDv]||'?') : '?';
       const coKey  = r._iCo >= 0 ? (headers[r._iCo]||'?') : '?';
+      // Valor raw direto do _rawCols (array de strings do Apps Script)
       const dvRawCol = r._rawCols && r._iDv >= 0 ? (r._rawCols[r._iDv]||'(vazio)') : '(sem raw)';
       const coRawCol = r._rawCols && r._iCo >= 0 ? (r._rawCols[r._iCo]||'(vazio)') : '(sem raw)';
-      return `<div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid ${r.value>0?'#00e5a0':'#444'}">
+      const via = r._via || '?';
+      return `<div style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,.04);border-radius:6px;border-left:3px solid ${valRaw>0?'#00e5a0':'#444'}">
         <b style="color:#fff">${r.client}</b> — <span style="color:#3a6fd8">${r.vendor}</span> — ${r.dateRaw}
-        — <span style="color:${r._via==='apps-script'?'#00e5a0':'#ffb800'};font-weight:700">via: ${r._via||'?'}</span><br><br>
+        — <span style="color:${via==='apps-script'?'#00e5a0':via==='csv'?'#ffb800':'#ff6b6b'};font-weight:700">via: ${via}</span><br><br>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
           <div style="background:rgba(0,229,160,.05);padding:8px;border-radius:4px;border:1px solid rgba(0,229,160,.2)">
             <div style="color:#00e5a0;font-weight:700;margin-bottom:4px">DIAS VENDA</div>
-            <div>Config: <b style="color:#fff">"${C.dv}"</b></div>
-            <div>Idx: <b style="color:${r._iDv>=0?'#00e5a0':'#ff6b6b'}">${r._iDv} — "${dvKey}"</b></div>
-            <div>Raw: <b style="color:#ffb800">"${dvRawCol}"</b></div>
+            <div>Coluna config: <b style="color:#fff">"${C.dv}"</b></div>
+            <div>Idx: <b style="color:${r._iDv>=0?'#00e5a0':'#ff6b6b'}">${r._iDv} — header: "${dvKey}"</b></div>
+            <div>Raw (AppsScript): <b style="color:#ffb800">"${dvRawCol}"</b></div>
             <div>Após parse: <b style="color:${dvRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${dvRaw}"</b></div>
           </div>
           <div style="background:rgba(58,111,216,.05);padding:8px;border-radius:4px;border:1px solid rgba(58,111,216,.2)">
             <div style="color:#3a6fd8;font-weight:700;margin-bottom:4px">DIAS CONTATO</div>
-            <div>Config: <b style="color:#fff">"${C.co}"</b></div>
-            <div>Idx: <b style="color:${r._iCo>=0?'#00e5a0':'#ff6b6b'}">${r._iCo} — "${coKey}"</b></div>
-            <div>Raw: <b style="color:#ffb800">"${coRawCol}"</b></div>
+            <div>Coluna config: <b style="color:#fff">"${C.co}"</b></div>
+            <div>Idx: <b style="color:${r._iCo>=0?'#00e5a0':'#ff6b6b'}">${r._iCo} — header: "${coKey}"</b></div>
+            <div>Raw (AppsScript): <b style="color:#ffb800">"${coRawCol}"</b></div>
             <div>Após parse: <b style="color:${coRaw!=='—'?'#00e5a0':'#ff6b6b'}">"${coRaw}"</b></div>
           </div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:#666">
+          Colunas: ${headers.map((h,idx)=>`<span style="background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;margin:1px;display:inline-block">[${idx}]${h}</span>`).join('')}
         </div>
       </div>`;
     }).join('');
 }
+
+// ── HELPERS ──────────────────────────────────────────
 function swV(v){ACTIVE=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===v));render();}
 function setGroup(g){
   GROUP = GROUP === g ? 'all' : g;
   ACTIVE = 'all';
+  // Visual dos botões de grupo
   const isF = GROUP === 'farmer', isD = GROUP === 'developer', isA = GROUP === 'all';
+  document.getElementById('btn-farmer').style.borderBottomColor    = isF ? '#b87a00' : 'transparent';
+  document.getElementById('btn-farmer').style.color                = isF ? '#b87a00' : '#b87a00';
   document.getElementById('btn-farmer').classList.toggle('active', isF);
+  document.getElementById('btn-developer').style.borderBottomColor = isD ? '#1a3a8c' : 'transparent';
   document.getElementById('btn-developer').classList.toggle('active', isD);
   document.getElementById('tab-all').classList.toggle('active', isA);
   buildTabs(); render();
 }
 function fBRL(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);}
-function setLoad(){document.getElementById('mc').innerHTML=`<div class="st-box"><div class="spin"></div><p>Carregando dados…</p></div>`;}
-function showErr(m){const e=document.getElementById('err');e.innerHTML=m+'<br><small style="font-weight:400;opacity:.8">Verifique: Apps Script implantado como "App da Web" com acesso "Qualquer pessoa"</small>';e.classList.add('on');}
+function setLoad(){document.getElementById('mc').innerHTML=`<div class="st-box"><div class="spin"></div><p>Carregando dados da planilha…</p></div>`;}
+function showErr(m){const e=document.getElementById('err');e.innerHTML=m+'<br><small style="font-weight:400;opacity:.8">Verifique: Arquivo → Compartilhar → "Qualquer pessoa com o link pode ver"</small>';e.classList.add('on');}
 function hideErr(){document.getElementById('err').classList.remove('on');}
 
 // ── DEBUG ─────────────────────────────────────────────
 function showDebug(){
   const el = document.getElementById('dbg-content');
   let html = '';
+
   const getRawD = (v) => (DATA[v]||[]).map(r=>({...r,vendor:v}));
   const activeVendors = ACTIVE==='all' ? C.sh.filter(v=>(DATA[v]||[]).length>0) : [ACTIVE];
   const allRawD = activeVendors.flatMap(v => getRawD(v));
 
-  // Busca por cliente
+  // ── BLOCO EXTRA: Vendedores com dados suspeitos (1 cliente "Não Venda") ──
+  const suspectVendors = C.sh.filter(v => {
+    const rows = DATA[v] || [];
+    if (rows.length !== 1) return false;
+    const r = rows[0];
+    return r.motivo && r.motivo.trim();
+  });
+  if (suspectVendors.length > 0) {
+    html += `<div style="margin-bottom:20px;padding:14px;background:rgba(255,100,0,.08);border:1px solid rgba(255,100,0,.3);border-radius:8px">
+      <div style="color:#ff6b00;font-weight:800;margin-bottom:10px;font-size:13px">⚠️ VENDEDORES COM 1 CLIENTE "NÃO VENDA" SUSPEITO</div>
+      ${suspectVendors.map(v => {
+        const r = (DATA[v]||[])[0] || {};
+        const cols = DATA['__cols__'+v] || [];
+        return `<div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.04);border-radius:4px;font-size:11px;font-family:'Roboto Mono',monospace">
+          <b style="color:#ff6b00">${v}</b> — via: <b style="color:#ffb800">${r._via||'?'}</b><br>
+          client="<b style="color:#fff">${r.client||'?'}</b>" | dateRaw="<b style="color:#ccc">${r.dateRaw||'?'}</b>"<br>
+          motivo="<b style="color:#ff6b6b">${r.motivo||'?'}</b>" | value=${r.value} | carteira="${r.carteira||''}"<br>
+          <span style="color:#666">Colunas (${cols.length}): ${cols.slice(0,8).map((h,i)=>`[${i}]${h}`).join(' | ')}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // ── BLOCO 1: Análise de timestamps por cliente ──────────────────
+  html += `<div style="margin-bottom:28px">
+    <div style="font-family:'Montserrat',sans-serif;font-size:15px;font-weight:800;color:#ffb800;margin-bottom:12px">
+      🕐 ANÁLISE DE TIMESTAMPS — Vendedor: <span style="color:#fff">${ACTIVE}</span>
+    </div>`;
+
+  // ── BLOCO 0: Busca específica por cliente ──────────────
   html += `<div style="margin-bottom:24px;padding:14px;background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.3);border-radius:8px">
     <div style="color:#ffb800;font-weight:800;margin-bottom:10px;font-size:13px">🔍 BUSCA POR CLIENTE ESPECÍFICO</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input id="dbg-client-search" placeholder="Digite o código do cliente" 
+      <input id="dbg-client-search" placeholder="Digite o código do cliente (ex: 39196)" 
         style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 12px;color:#fff;font-family:'Roboto Mono',monospace;font-size:12px;outline:none">
       <button onclick="searchClient()" style="background:#ffb800;color:#000;border:none;border-radius:6px;padding:8px 18px;font-weight:800;cursor:pointer;font-size:12px">Buscar</button>
     </div>
     <div id="dbg-client-result" style="font-size:11px;font-family:'Roboto Mono',monospace"></div>
   </div>`;
 
-  // Status de conexão
-  html += `<div style="margin-bottom:20px;padding:14px;background:rgba(58,111,216,.08);border:1px solid rgba(58,111,216,.3);border-radius:8px">
-    <div style="color:#3a6fd8;font-weight:800;margin-bottom:10px;font-size:13px">🔗 STATUS DE CONEXÃO</div>
-    <div style="font-size:11px;font-family:'Roboto Mono',monospace;line-height:1.8">
-      <div>Apps Script URL: <b style="color:#fff;word-break:break-all">${APPS_SCRIPT_URL}</b></div>
-      <div>Vendedores carregados: <b style="color:${activeVendors.length>0?'#00e5a0':'#ff6b6b'}">${activeVendors.length}</b></div>
-      <div>Total de registros: <b style="color:#fff">${allRawD.length}</b></div>
-      <div style="margin-top:10px">
-        <button onclick="testConnection()" style="background:#3a6fd8;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-weight:700;cursor:pointer;font-size:12px">🧪 Testar Conexão Agora</button>
-      </div>
-      <div id="dbg-conn-result" style="margin-top:10px"></div>
+  // Agrupa todos os registros por cliente
+  const byClient = {};
+  allRawD.forEach(r => {
+    const k = (r.client||'').toLowerCase().trim();
+    if (!k) return;
+    if (!byClient[k]) byClient[k] = [];
+    byClient[k].push(r);
+  });
+
+  // Clientes com mais de 1 registro (candidatos a problema)
+  const multiRows = Object.entries(byClient)
+    .filter(([,rows]) => rows.length > 1)
+    .sort(([,a],[,b]) => b.length - a.length)
+    .slice(0, 15);
+
+  html += `<div style="padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:12px;font-size:12px">
+    <div>Total clientes únicos na aba: <b style="color:#fff">${Object.keys(byClient).length}</b></div>
+    <div>Clientes com <b>1 linha</b>: <b style="color:#00e5a0">${Object.values(byClient).filter(r=>r.length===1).length}</b></div>
+    <div>Clientes com <b>múltiplas linhas</b>: <b style="color:#ffb800">${Object.values(byClient).filter(r=>r.length>1).length}</b>
+      ${Object.values(byClient).filter(r=>r.length>1).length > 0 ? '← <span style="color:#ff6b6b">aqui pode estar o problema</span>' : ''}
     </div>
   </div>`;
 
-  // Análise de dados
-  const byClient = {};
-  allRawD.forEach(r => { const k = (r.client||'').toLowerCase().trim(); if (!k) return; if (!byClient[k]) byClient[k] = []; byClient[k].push(r); });
-  const multiRows = Object.entries(byClient).filter(([,rows]) => rows.length > 1).sort(([,a],[,b]) => b.length - a.length).slice(0, 10);
+  if (multiRows.length === 0) {
+    html += `<div style="padding:12px;background:rgba(0,229,160,.05);border-radius:8px;border:1px solid rgba(0,229,160,.2);color:#00e5a0;font-weight:700">
+      ✅ Todos os clientes têm apenas 1 linha — sem problema de duplicatas de timestamp.
+    </div>`;
+  } else {
+    html += `<div style="padding:12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:10px">
+      <div style="color:#ffb800;font-weight:700;margin-bottom:10px">Top ${multiRows.length} clientes com múltiplas linhas:</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="color:#ffb800;border-bottom:1px solid rgba(255,255,255,.1)">
+          <th style="text-align:left;padding:5px 8px">Cliente</th>
+          <th style="padding:5px 8px">Qtd linhas</th>
+          <th style="text-align:left;padding:5px 8px">Timestamps encontrados</th>
+          <th style="text-align:left;padding:5px 8px;color:#00e5a0">✅ Selecionado (mais recente)</th>
+          <th style="padding:5px 8px;color:#00e5a0">FAT.MÊS selecionado</th>
+          <th style="padding:5px 8px;color:#00e5a0">DIAS VENDA selecionado</th>
+        </tr>
+        ${multiRows.map(([client, rows]) => {
+          // Simula exatamente o que o dedup faz
+          let selected = rows[0];
+          rows.forEach(r => {
+            const a = selected.date ? selected.date.getTime() : 0;
+            const b = r.date        ? r.date.getTime()        : 0;
+            if (b > a) selected = r;
+          });
+          const timestamps = rows
+            .map(r => r.dateRaw || '—')
+            .sort()
+            .join('<br>');
+          const dv = String(selected.diasVenda||'').trim();
+          const dvOk = dv && dv !== '0';
+          return `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+            <td style="padding:5px 8px;color:#fff;font-weight:700">${rows[0].client}</td>
+            <td style="padding:5px 8px;text-align:center;color:#ffb800">${rows.length}</td>
+            <td style="padding:5px 8px;color:#888;font-size:10px">${timestamps}</td>
+            <td style="padding:5px 8px;color:#00e5a0;font-size:10px">${selected.dateRaw||'—'}</td>
+            <td style="padding:5px 8px;text-align:center;color:${selected.value>0?'#00e5a0':'#666'};font-weight:700">${selected.value>0?fBRL(selected.value):'—'}</td>
+            <td style="padding:5px 8px;text-align:center;color:${dvOk?'#00e5a0':'#666'}">${selected.diasVenda||'—'}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>`;
+  }
 
-  html += `<div style="padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:12px;font-size:12px">
-    <div>Total clientes únicos: <b style="color:#fff">${Object.keys(byClient).length}</b></div>
-    <div>Com 1 linha: <b style="color:#00e5a0">${Object.values(byClient).filter(r=>r.length===1).length}</b></div>
-    <div>Com múltiplas linhas: <b style="color:#ffb800">${Object.values(byClient).filter(r=>r.length>1).length}</b></div>
+  // ── BLOCO 2: Verificação do resultado final ──────────────────────
+  const dedupFn = (rows, keyFn) => {
+    const m = new Map();
+    rows.forEach(r => {
+      const k = keyFn(r);
+      if (!k) return;
+      const ex = m.get(k);
+      if (!ex) { m.set(k, r); return; }
+      const a = ex.date ? ex.date.getTime() : 0;
+      const b =  r.date ?  r.date.getTime() : 0;
+      if (b > a) m.set(k, r);
+    });
+    return Array.from(m.values());
+  };
+
+  const step1 = dedupFn(allRawD, r => `${r.vendor}::${(r.client||'').toLowerCase()}`);
+  const step2 = dedupFn(step1,   r => (r.client||'').toLowerCase().trim());
+  const hasDV = r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; };
+  const step2DV = step2.filter(hasDV);
+
+  const metaTotal = step2.reduce((a,r)=>a+(r.meta||0),0);
+  const fatTotal  = step2.filter(r=>r.value>0).reduce((a,r)=>a+(r.value||0),0);
+  const atingDbg  = metaTotal > 0 ? Math.round((fatTotal/metaTotal)*100) : null;
+
+  // Top 10 META para ver se vêm corretas
+  const top10meta = [...step2].filter(r=>r.meta>0).sort((a,b)=>(b.meta||0)-(a.meta||0)).slice(0,10);
+
+  html += `<div style="padding:12px;background:rgba(0,229,160,.05);border-radius:8px;border:1px solid rgba(0,229,160,.3)">
+    <div style="color:#00e5a0;font-weight:700;margin-bottom:10px">📊 RESULTADO FINAL</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:rgba(255,255,255,.04);padding:10px;border-radius:6px">
+        <div style="color:#888;font-size:10px;font-weight:700;margin-bottom:4px">CLIENTES ÚNICOS</div>
+        <div style="color:#fff;font-size:16px;font-weight:700">${step2.length}</div>
+      </div>
+      <div style="background:rgba(0,229,160,.08);padding:10px;border-radius:6px;border:1px solid rgba(0,229,160,.3)">
+        <div style="color:#00e5a0;font-size:10px;font-weight:700;margin-bottom:4px">✅ FATURAMENTO (FAT > 0)</div>
+        <div style="color:#00e5a0;font-size:14px;font-weight:800">${fBRL(fatTotal)}</div>
+        <div style="color:#888;font-size:10px">${step2.filter(r=>r.value>0).length} clientes</div>
+      </div>
+      <div style="background:rgba(58,111,216,.08);padding:10px;border-radius:6px;border:1px solid rgba(58,111,216,.3)">
+        <div style="color:#3a6fd8;font-size:10px;font-weight:700;margin-bottom:4px">META TOTAL</div>
+        <div style="color:#3a6fd8;font-size:14px;font-weight:800">${fBRL(metaTotal)}</div>
+        <div style="color:#888;font-size:10px">Ating: ${atingDbg!=null?atingDbg+'%':'—'}</div>
+      </div>
+    </div>
+    <div style="color:#ffb800;font-weight:700;margin-bottom:6px;font-size:11px">Top 10 maiores META FAT. (raw):</div>
+    <table style="width:100%;border-collapse:collapse;font-size:10px">
+      <tr style="color:#888"><th style="text-align:left;padding:3px 6px">Cliente</th><th style="padding:3px 6px">META raw</th><th style="padding:3px 6px">FAT.MÊS raw</th><th style="padding:3px 6px">Data</th></tr>
+      ${top10meta.map(r=>`<tr style="border-top:1px solid rgba(255,255,255,.04)">
+        <td style="padding:3px 6px;color:#fff">${r.client}</td>
+        <td style="padding:3px 6px;color:#3a6fd8;font-weight:700">${fBRL(r.meta)}</td>
+        <td style="padding:3px 6px;color:#00e5a0">${fBRL(r.value)}</td>
+        <td style="padding:3px 6px;color:#666">${r.dateRaw||'—'}</td>
+      </tr>`).join('')}
+    </table>
   </div>`;
 
+  html += `</div>`;
   el.innerHTML = html;
   document.getElementById('dbg-overlay').style.display = 'block';
-}
-
-async function testConnection() {
-  const res = document.getElementById('dbg-conn-result');
-  res.innerHTML = '<span style="color:#888">Testando...</span>';
-  try {
-    const url = `${APPS_SCRIPT_URL}?action=ping&t=${Date.now()}`;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
-    clearTimeout(timer);
-    const txt = await r.text();
-    res.innerHTML = `<div style="color:#00e5a0;font-weight:700">✅ Conectado! HTTP ${r.status}</div><div style="color:#888;margin-top:4px">Resposta: ${txt.slice(0,200)}</div>`;
-  } catch(e) {
-    res.innerHTML = `<div style="color:#ff6b6b;font-weight:700">❌ Falha: ${e.name} — ${e.message}</div>`;
-  }
 }
 </script>
 </body>
