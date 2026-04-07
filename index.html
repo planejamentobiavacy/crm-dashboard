@@ -315,13 +315,15 @@ function toggleSett(){
   }
   el.innerHTML = [...vendors].sort((a,b) => a.localeCompare(b)).map(v => {
     const rows = DATA[v] || [];
-    const lastDate = rows.reduce((max, r) => {
-      const d = r.dateRaw || '';
-      return d > max ? d : max;
-    }, '');
+    const lastRow = rows.reduce((best, r) => {
+      if (!r.date) return best;
+      if (!best || r.date > best.date) return r;
+      return best;
+    }, null);
+    const lastDate = lastRow?.dateRaw || '—';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--off);border-radius:6px;border-left:3px solid #1a8c4e">
       <span style="font-weight:700;color:var(--text)">${v}</span>
-      <span style="color:var(--text3);font-size:11px">${lastDate || '—'}</span>
+      <span style="color:var(--text3);font-size:11px">${lastDate}</span>
     </div>`;
   }).join('');
 }
