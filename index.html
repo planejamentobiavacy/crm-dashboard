@@ -893,15 +893,17 @@ function fltPeriod(rows){
     return rows.filter(r => r.date && r.date >= ini);
   }
 
-  // Últ. Dia = maior dia numérico em DIAS VENDA/CONTATO da DATA ENVIO mais recente
+  // Últ. Dia = dia anterior ao maior dia numérico em DIAS VENDA/CONTATO
   if(PERIOD==='1'){
     const info = getMaxDay(rows);
     if (!info) return rows;
+    const prevDay = info.maxDay - 1;
+    if (prevDay <= 0) return [];
     return rows.filter(r => {
       if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
       const coDays = parseDays(r.contato);
-      return dvDays.includes(info.maxDay) || coDays.includes(info.maxDay);
+      return dvDays.includes(prevDay) || coDays.includes(prevDay);
     });
   }
 
@@ -1089,28 +1091,31 @@ function render(){
   });
   const rowsFinanceiroMtd = dedupGlobalFn(rowsMtd);
   const totValMtd    = rowsFinanceiroMtd.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0);
-  const maxMetaFat   = rowsFinanceiroMtd.reduce((a,r) => a + (r.meta||0), 0);
-  const ating        = maxMetaFat > 0 ? Math.round((totValMtd / maxMetaFat) * 100) : null;
 
   // POSIT. MTD e META POSIT.: calcula por vendedor e soma
   // — META POSIT. = máximo por vendedor (mesmo valor em todas as linhas do vendedor)
   // — POSIT. MÊS  = soma por vendedor (varia por dia, acumulado do mês)
-  const vendorsAtivos = getGroupVendors().filter(v => (DATA[v]||[]).length > 0);
+  const vendorsAtivos = ACTIVE === 'all'
+    ? getGroupVendors().filter(v => (DATA[v]||[]).length > 0)
+    : [ACTIVE].filter(v => (DATA[v]||[]).length > 0);
   let totalMetaPos = 0;
   let totalPositMes = 0;
+  let totalMetaFat  = 0;
+  const now2 = new Date();
+  const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
   vendorsAtivos.forEach(v => {
-    const vRowsMtd = fltPeriodByDate(dedup(getRaw(v))).filter(r => {
-      if (!r.date) return false;
-      const now = new Date();
-      return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
-    });
+    // MTD: sempre mês inteiro, sem considerar filtro de período
+    const vRowsMtd = dedup(getRaw(v)).filter(r => r.date && r.date >= iniMes2);
     const vMetaPos  = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
     const vPositMes = vRowsMtd.reduce((a,r) => a + (r.positMes||0), 0);
+    const vMetaFat  = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
     totalMetaPos  += vMetaPos;
     totalPositMes += vPositMes;
+    totalMetaFat  += vMetaFat;
   });
   const sumPositMes = totalPositMes;
   const pctPos      = totalMetaPos > 0 ? Math.round((totalPositMes / totalMetaPos) * 100) : null;
+  const ating       = totalMetaFat  > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
 
   // ── KPIs linha 1 — respeitam filtro de período
   const kpisRow1 = [
