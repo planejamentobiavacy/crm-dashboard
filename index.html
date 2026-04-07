@@ -320,7 +320,12 @@ function toggleSett(){
       if (!best || r.date > best.date) return r;
       return best;
     }, null);
-    const lastDate = lastRow?.dateRaw || '—';
+    let lastDate = '—';
+    if (lastRow?.date) {
+      const d = lastRow.date;
+      const pad = n => String(n).padStart(2,'0');
+      lastDate = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--off);border-radius:6px;border-left:3px solid #1a8c4e">
       <span style="font-weight:700;color:var(--text)">${v}</span>
       <span style="color:var(--text3);font-size:11px">${lastDate}</span>
