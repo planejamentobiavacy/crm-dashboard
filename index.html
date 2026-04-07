@@ -859,8 +859,16 @@ function fltPeriod(rows){
   if(PERIOD==='all') return rows;
 
   if(PERIOD==='hoje'){
-    const hoje = new Date().toISOString().slice(0,10);
-    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === hoje);
+    // Hoje = clientes que têm o dia do mês de hoje em DIAS CONTATO ou DIAS VENDA
+    const diaHoje = new Date().getDate();
+    const info = getMaxDay(rows);
+    const maxDate = info ? info.maxDate : null;
+    return rows.filter(r => {
+      if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
+      const dvDays = parseDays(r.diasVenda);
+      const coDays = parseDays(r.contato);
+      return dvDays.includes(diaHoje) || coDays.includes(diaHoje);
+    });
   }
 
   if(PERIOD==='custom'){
@@ -873,39 +881,28 @@ function fltPeriod(rows){
   }
 
   if(PERIOD==='mtd'){
-    // MTD: clientes que têm qualquer dia preenchido no mês atual
     const now = new Date();
     const ini = new Date(now.getFullYear(), now.getMonth(), 1);
     return rows.filter(r => r.date && r.date >= ini);
   }
 
-  // Últ. Dia = dia anterior ao maior dia de DIAS VENDA/CONTATO da DATA ENVIO mais recente
+  // Últ. Dia = maior dia numérico em DIAS VENDA/CONTATO da DATA ENVIO mais recente
   if(PERIOD==='1'){
     const info = getMaxDay(rows);
     if (!info) return rows;
-    const prevDay = info.maxDay - 1;
-    if (prevDay <= 0) return [];
-    // Filtra registros da data mais recente que têm prevDay em DIAS VENDA ou DIAS CONTATO
     return rows.filter(r => {
       if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
       const coDays = parseDays(r.contato);
-      return dvDays.includes(prevDay) || coDays.includes(prevDay);
+      return dvDays.includes(info.maxDay) || coDays.includes(info.maxDay);
     });
   }
 
-  // N dias: filtra por dia N presente em DIAS VENDA ou DIAS CONTATO
+  // N dias: últimos N dias numéricos em DIAS VENDA/CONTATO
   if(!isNaN(parseInt(PERIOD))){
-    // Usa a data mais recente dos dados como referência
-    const maxDate = rows.reduce((max, r) => {
-      const d = r.date ? r.date.toISOString().slice(0,10) : '';
-      return d > max ? d : max;
-    }, '');
-    const nDias = parseInt(PERIOD);
-    // Pega os últimos N dias presentes em DIAS VENDA/CONTATO
     const info = getMaxDay(rows);
     if (!info) return rows;
-    const cutDay = info.maxDay - nDias + 1;
+    const cutDay = info.maxDay - parseInt(PERIOD) + 1;
     return rows.filter(r => {
       if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
@@ -993,15 +990,14 @@ function render(){
   const totMeta = rowsFinanceiro.reduce((a,r) => a + (r.meta || 0), 0);
 
   // ── KPIs de contagem
-  const cntPos  = rows.filter(r => r.value > 0).length;
-  // NÃO VENDA filtra por DATA ENVIO (não por DIAS VENDA/CONTATO)
-  const rowsByDate = fltPeriodByDate(dd);
+  const rowsByDate  = fltPeriodByDate(dd);  // para Não Venda (DATA ENVIO)
+  const rowsConVen  = rows;                  // Contato/Venda sempre por DIAS CONTATO/VENDA
+
+  const cntPos  = rowsConVen.filter(r => r.value > 0).length;
   const cntNav  = rowsByDate.filter(r => r.motivo && r.motivo.trim()).length;
-  const cntCon  = rows.filter(r => r.contato && r.contato.trim()).length;
-  // CARTEIRA: todos os grupos com SIM na data mais recente (não depende de DIAS VENDA/CONTATO)
+  const cntCon  = rowsConVen.filter(r => r.contato && r.contato.trim()).length;
   const cntCar  = dd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
-  // VENDA = contagem distinta de grupos com DIAS VENDA preenchido
-  const cntVen  = rows.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length;
+  const cntVen  = rowsConVen.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length;
 
   const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
   const total = rows.length;
