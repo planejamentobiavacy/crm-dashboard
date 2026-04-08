@@ -288,6 +288,33 @@ const STAGES = [
 
 // ── STATE ────────────────────────────────────────────
 let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all';
+
+// Mapeamento NOME_VENDEDOR (vendas_v1) → nome da aba
+const VENDOR_MAP = {
+  'CARLOS ADRIANO LEPERES':  'ADRIANO',
+  'LEANDRO OLIVEIRA':        'LEANDRO',
+  'DENIS APARECIDO':         'DENIS',
+  'LUCAS CUSTODIO':          'LUCAS',
+  'MARCELO OLIVEIRA':        'MARCELO',
+  'DOUGLAS ALMEIDA':         'DOUGLAS',
+  'NOADIA MARTINS':          'NOA',
+  'DEBORAH MARTINS':         'DEBORAH',
+  'JOYCE SILVA DE OLIVEIRA': 'JOYCE',
+  'RAFAEL OLIVEIRA LOPES':   'RAFAEL',
+  'AUGUSTO CESAR':           'AUGUSTO',
+  'THAIS NEPOMUCENO':        'THAIS',
+  'BRUNO BENICIO SILVA':     'BRUNO',
+  'ALEX ANDREI GASTALDI':    'ALEX',
+  'ROSANE SANTOS':           'ROSANE',
+  'SAMARA FERNANDES':        'SAMARA',
+  'KEULLY BIANCA':           'KEULLY',
+  'CINTIA NOBRE':            'CINTIA',
+  'ALINE CRISTINA':          'ALINE',
+  'MATHEUS BRITO':           'MATEUS',
+  'WESLEY BRITO':            'WESLEY',
+};
+
+let VENDAS_V1 = []; // dados brutos da aba vendas_v1 {vendor, codClienteLoja, fat, date}
 let D_FROM = null, D_TO = null, CH = null;
 let _rows = [];
 
@@ -377,24 +404,43 @@ async function loadAllFromAppsScript() {
   return null;
 }
 
-async function fetchSheet(name) {
+// Carrega aba vendas_v1 para Faturamento e Positivado MTD
+async function loadVendasV1() {
   try {
-    const url = `${APPS_SCRIPT_URL}?sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 15000); return c.signal; })() });
-    if (r.ok) {
-      const data = await r.json();
-      if (data?.rows?.length > 0) {
-        const rows = parseAppsScript(data, name);
-        console.log(`✅ ${name} — ${rows.length} clientes | POSIT.MÊS ex: ${rows[0]?.positMes} | META POSIT. ex: ${rows[0]?.metaPos}`);
-        return rows;
-      }
-      console.log(`📭 "${name}": ${data?.error || 'vazio'}`);
-      return [];
-    }
+    const url = `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`;
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data || !data.rows || !data.headers) return;
+
+    const hi = (col) => data.headers.findIndex(h => h.trim().toUpperCase() === col);
+    const iFat   = hi('FATURAMENTO');
+    const iVend  = hi('NOME_VENDEDOR');
+    const iDate  = hi('DATA_FAT');
+    const iCodCL = hi('COD_CLIENTE_LOJA');
+
+    VENDAS_V1 = data.rows.map(row => {
+      const nomeVend = (row['NOME_VENDEDOR'] || '').trim().toUpperCase();
+      const vendor   = VENDOR_MAP[nomeVend] || nomeVend;
+      const fatRaw   = (row['FATURAMENTO'] || '').replace(/[^\d,.-]/g,'').replace(',','.');
+      const fat      = parseFloat(fatRaw) || 0;
+      const dateStr  = row['DATA_FAT'] || '';
+      const codCL    = (row['COD_CLIENTE_LOJA'] || '').trim();
+      // Parse data DD/MM/YYYY ou YYYY-MM-DD
+      let date = null;
+      const m1 = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const m2 = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m1) date = new Date(m1[3], m1[2]-1, m1[1]);
+      else if (m2) date = new Date(m2[1], m2[2]-1, m2[3]);
+      return { vendor, codClienteLoja: codCL, fat, date, dateStr };
+    }).filter(r => r.vendor && r.date);
+
+    console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas carregadas`);
   } catch(e) {
-    console.warn(`❌ "${name}":`, e.message);
+    console.warn('❌ vendas_v1 falhou:', e.message);
   }
-  return [];
 }
 
 async function fetchSheetCSV(name) {
@@ -725,8 +771,11 @@ async function loadData(){
 
   const allCandidates = C.sh;
 
-  // Tenta carregar todos de uma vez via action=export (mais eficiente, sem redirect issues)
-  const exportData = await loadAllFromAppsScript();
+  // Carrega dados em paralelo: export (PMG) + vendas_v1 (faturamento real)
+  const [exportData] = await Promise.all([
+    loadAllFromAppsScript(),
+    loadVendasV1()
+  ]);
 
   if (exportData) {
     // Usa dados do export diretamente
@@ -1082,40 +1131,48 @@ function render(){
   const mc=document.getElementById('mc');
   mc.innerHTML='';mc.className='fin';
 
-  // ── FATURAMENTO MTD e POSITIVADO MTD — sempre acumulado do mês, sem filtro de período
-  const ddAll = dedup(allRaw);
-  const rowsMtd = ddAll.filter(r => {
-    if (!r.date) return false;
-    const now = new Date();
-    return r.date >= new Date(now.getFullYear(), now.getMonth(), 1);
+  // ── FATURAMENTO MTD e POSITIVADO MTD — fonte: aba vendas_v1
+  // Filtra pelo mês atual e pelo vendedor ativo
+  const now2   = new Date();
+  const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
+  const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
+
+  const vendAtivos = ACTIVE === 'all'
+    ? getGroupVendors()
+    : [ACTIVE];
+
+  const v1Filt = VENDAS_V1.filter(r => {
+    if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
+    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
+    // Se filtro de grupo (Farmer/Developer), filtra vendedores do grupo
+    if (ACTIVE === 'all') return vendAtivos.includes(r.vendor);
+    return true;
   });
-  const rowsFinanceiroMtd = dedupGlobalFn(rowsMtd);
-  const totValMtd    = rowsFinanceiroMtd.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0);
+
+  const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
+  // Positivado MTD = contagem distinta de COD_CLIENTE_LOJA com FAT > 0
+  const positSet    = new Set(v1Filt.filter(r => r.fat > 0).map(r => r.codClienteLoja));
+  const sumPositMes = positSet.size;
+
+  console.log(`📊 MTD: fat=${totValMtd.toFixed(0)} posit=${sumPositMes} linhas=${v1Filt.length}`);
 
   // POSIT. MTD e META POSIT.: calcula por vendedor e soma
   // — META POSIT. = máximo por vendedor (mesmo valor em todas as linhas do vendedor)
   // — POSIT. MÊS  = soma por vendedor (varia por dia, acumulado do mês)
-  const vendorsAtivos = ACTIVE === 'all'
-    ? getGroupVendors().filter(v => (DATA[v]||[]).length > 0)
-    : [ACTIVE].filter(v => (DATA[v]||[]).length > 0);
+  // Meta FAT e Meta Posit ainda vêm das abas dos vendedores
+  const vendorsAtivos = vendAtivos.filter(v => (DATA[v]||[]).length > 0);
   let totalMetaPos = 0;
-  let totalPositMes = 0;
   let totalMetaFat  = 0;
-  const now2 = new Date();
-  const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
+  const iniMes3 = iniMes2;
   vendorsAtivos.forEach(v => {
-    // MTD: sempre mês inteiro, sem considerar filtro de período
-    const vRowsMtd = dedup(getRaw(v)).filter(r => r.date && r.date >= iniMes2);
-    const vMetaPos  = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
-    const vPositMes = vRowsMtd.reduce((a,r) => a + (r.positMes||0), 0);
-    const vMetaFat  = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
-    totalMetaPos  += vMetaPos;
-    totalPositMes += vPositMes;
-    totalMetaFat  += vMetaFat;
+    const vRowsMtd = dedup(getRaw(v)).filter(r => r.date && r.date >= iniMes3);
+    const vMetaPos = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    const vMetaFat = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
+    totalMetaPos += vMetaPos;
+    totalMetaFat += vMetaFat;
   });
-  const sumPositMes = totalPositMes;
-  const pctPos      = totalMetaPos > 0 ? Math.round((totalPositMes / totalMetaPos) * 100) : null;
-  const ating       = totalMetaFat  > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
+  const pctPos  = totalMetaPos > 0 ? Math.round((sumPositMes / totalMetaPos) * 100) : null;
+  const ating   = totalMetaFat > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
 
   // ── KPIs linha 1 — respeitam filtro de período
   const kpisRow1 = [
