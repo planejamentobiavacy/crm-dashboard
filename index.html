@@ -951,7 +951,12 @@ function fltPeriodByDate(rows){
     return d > max ? d : max;
   }, '');
   if(PERIOD==='1'){
-    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    const ontemStr = ontem.toISOString().slice(0,10);
+    // Usa ontem se tiver dados, senão usa data mais recente
+    const target = rows.some(r => r.date && r.date.toISOString().slice(0,10) === ontemStr) ? ontemStr : maxDate;
+    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === target);
   }
   const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
   return rows.filter(r => r.date && r.date >= cut);
@@ -988,17 +993,17 @@ function fltPeriod(rows){
     return rows.filter(r => r.date && r.date >= ini);
   }
 
-  // Últ. Dia = dia anterior ao maior dia numérico em DIAS VENDA/CONTATO
+  // Últ. Dia = dia anterior a hoje (ontem) em DIAS VENDA/CONTATO
   if(PERIOD==='1'){
+    const ontem = new Date().getDate() - 1;
+    if (ontem <= 0) return [];
     const info = getMaxDay(rows);
-    if (!info) return rows;
-    const prevDay = info.maxDay - 1;
-    if (prevDay <= 0) return [];
+    const maxDate = info ? info.maxDate : null;
     return rows.filter(r => {
-      if (!r.date || r.date.toISOString().slice(0,10) !== info.maxDate) return false;
+      if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
       const coDays = parseDays(r.contato);
-      return dvDays.includes(prevDay) || coDays.includes(prevDay);
+      return dvDays.includes(ontem) || coDays.includes(ontem);
     });
   }
 
