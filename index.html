@@ -1143,10 +1143,24 @@ function render(){
   const v1Filt = VENDAS_V1.filter(r => {
     if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
     if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
-    // Se filtro de grupo (Farmer/Developer), filtra vendedores do grupo
     if (ACTIVE === 'all') return vendAtivos.includes(r.vendor);
     return true;
   });
+
+  // Debug: mostra distribuição de vendors e datas na vendas_v1
+  if (VENDAS_V1.length > 0) {
+    const vendCount = {};
+    VENDAS_V1.forEach(r => { vendCount[r.vendor] = (vendCount[r.vendor]||0)+1; });
+    const dateRange = VENDAS_V1.reduce((acc,r) => {
+      if (!r.date) return acc;
+      const d = r.date.toISOString().slice(0,10);
+      if (!acc.min || d < acc.min) acc.min = d;
+      if (!acc.max || d > acc.max) acc.max = d;
+      return acc;
+    }, {min:'',max:''});
+    console.log(`🔍 vendas_v1 total=${VENDAS_V1.length} | datas: ${dateRange.min} → ${dateRange.max} | ACTIVE="${ACTIVE}" | v1Filt=${v1Filt.length}`);
+    console.log(`🔍 vendors na v1:`, JSON.stringify(vendCount));
+  }
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
   // Positivado MTD = contagem distinta de COD_CLIENTE_LOJA com FAT > 0
