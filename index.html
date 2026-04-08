@@ -428,8 +428,9 @@ async function loadVendasV1() {
       const fat      = parseFloat(fatRaw) || 0;
       const dateStr  = row['DATA_FAT'] || '';
       const codCL    = (row['COD_CLIENTE_LOJA'] || '').trim();
+      const codGC    = (row['COD_GC'] || '').trim();
       const date     = pDate(dateStr);
-      return { vendor, codClienteLoja: codCL, fat, date, dateStr };
+      return { vendor, codClienteLoja: codCL, codGC, fat, date, dateStr };
     }).filter(r => r.vendor && r.date);
 
     console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas | ex: vendor="${VENDAS_V1[0]?.vendor}" fat=${VENDAS_V1[0]?.fat} date=${VENDAS_V1[0]?.dateStr}`);
@@ -1114,19 +1115,18 @@ function render(){
   });
   const dKeys = Object.keys(byD).sort();
 
-  // ── Vendor stats
+  // ── Vendor stats — respeitam filtro de período
   const vs = {};
   getGroupVendors().forEach(v => {
-    const vd    = fltPeriod(dedup(getRaw(v)));
-    const vdFin = dedupGlobalFn(vd);
+    const vdAll  = dedup(getRaw(v));                    // todos dedupados
+    const vd     = fltPeriod(vdAll);                    // filtrado por período (DIAS VENDA/CONTATO)
+    const vdDate = fltPeriodByDate(vdAll);              // filtrado por DATA ENVIO (Não Venda)
     vs[v] = {
-      total:       vd.length,
-      value:       vdFin.filter(r => r.value > 0).reduce((a,r) => a + (r.value||0), 0),
-      meta:        vdFin.reduce((a,r) => a + (r.meta||0), 0),
-      positivado:  vd.filter(r => r.value > 0).length,
-      nao_venda:   vd.filter(r => r.motivo  && r.motivo.trim()).length,
+      total:       vdAll.length,
+      em_carteira: vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
       em_contato:  vd.filter(r => r.contato && r.contato.trim()).length,
-      em_carteira: vd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
+      positivado:  vd.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length,
+      nao_venda:   vdDate.filter(r => r.motivo && r.motivo.trim()).length,
     };
   });
 
@@ -1191,11 +1191,50 @@ function render(){
   const ating   = totalMetaFat > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
 
   // ── KPIs linha 1 — respeitam filtro de período
+  // Faturamento período: vendas_v1 filtrado por DATA_FAT no período selecionado
+  const now3 = new Date();
+  const v1Period = VENDAS_V1.filter(r => {
+    if (!r.date) return false;
+    // Filtra pelo vendedor/grupo ativo
+    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
+    if (ACTIVE === 'all' && !getGroupVendors().includes(r.vendor)) return false;
+    // Filtra pelo período
+    if (PERIOD === 'all') return true;
+    if (PERIOD === 'hoje') {
+      const hoje = now3.getDate();
+      const mesAtual = now3.getMonth();
+      const anoAtual = now3.getFullYear();
+      return r.date.getDate() === hoje && r.date.getMonth() === mesAtual && r.date.getFullYear() === anoAtual;
+    }
+    if (PERIOD === 'mtd') {
+      return r.date >= new Date(now3.getFullYear(), now3.getMonth(), 1);
+    }
+    if (PERIOD === 'custom') {
+      if (D_FROM && r.date < D_FROM) return false;
+      if (D_TO   && r.date > D_TO)   return false;
+      return true;
+    }
+    if (PERIOD === '1') {
+      // Últ. dia: dia anterior ao maior dia dos dados
+      const info = getMaxDay(dedup(allRaw));
+      if (!info) return true;
+      const prevDay = info.maxDay - 1;
+      return r.date.getDate() === prevDay;
+    }
+    if (!isNaN(parseInt(PERIOD))) {
+      const cut = new Date(now3.getFullYear(), now3.getMonth(), now3.getDate() - parseInt(PERIOD) + 1);
+      return r.date >= cut;
+    }
+    return true;
+  });
+  const totValPeriod = v1Period.reduce((a,r) => a + (r.fat||0), 0);
+
   const kpisRow1 = [
-    {ico:'💼', lbl:'Carteira',   sub:'Grupos Comerciais', val:cntCar, kc:'var(--g-car)'},
-    {ico:'📞', lbl:'Contato',    sub:'Grupos Comerciais', val:cntCon, kc:'var(--blue)'},
-    {ico:'🛒', lbl:'Venda',      sub:'Grupos Comerciais', val:cntVen, kc:'var(--g-pos)'},
-    {ico:'❌', lbl:'Não Venda',  sub:'Grupos Comerciais', val:cntNav, kc:'var(--red)'},
+    {ico:'💰', lbl:'Faturamento',  sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', sm:true},
+    {ico:'💼', lbl:'Carteira',     sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
+    {ico:'📞', lbl:'Contato',      sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)'},
+    {ico:'🛒', lbl:'Venda',        sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
+    {ico:'❌', lbl:'Não Venda',    sub:'Grupos Comerciais', val:cntNav,             kc:'var(--red)'},
   ];
   // ── KPIs linha MTD — sempre acumulado do mês
   const kpisRow2 = [
@@ -1228,7 +1267,7 @@ function render(){
   }
 
   mc.innerHTML += `
-    <div class="kpi-g" style="grid-template-columns:repeat(4,1fr);margin-bottom:22px">
+    <div class="kpi-g" style="grid-template-columns:repeat(5,1fr);margin-bottom:22px">
       ${kpisRow1.map(kpiHtml).join('')}
     </div>`;
 
@@ -1506,6 +1545,16 @@ function drawTbl(rows, noUpdate){
   const showV = ACTIVE==='all';
   const sm = {positivado:STAGES[0], nao_venda:STAGES[1], em_contato:STAGES[2], em_carteira:STAGES[3]};
 
+  // Lookup COD_GC → FAT total do mês (vendas_v1)
+  const now = new Date();
+  const iniM = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fimM = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  const v1Map = {};
+  VENDAS_V1.filter(r => r.date && r.date >= iniM && r.date <= fimM).forEach(r => {
+    const gc = (r.codGC || '').trim();
+    if (gc) v1Map[gc] = (v1Map[gc] || 0) + (r.fat || 0);
+  });
+
   if(!rows.length){
     tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
     return;
@@ -1518,13 +1567,16 @@ function drawTbl(rows, noUpdate){
       ? `<span class="badge" style="background:${st.bg};color:${st.col}">${st.lbl}</span>`
       : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
     const car = (r.carteira||'').toLowerCase().trim();
+    // FAT. MÊS: usa vendas_v1 se disponível, senão cai para r.value
+    const fatV1  = v1Map[(r.client||'').trim()];
+    const fatVal = fatV1 != null ? fatV1 : r.value;
     return `<tr>
       <td>
         ${r.clientName ? `<div style="font-weight:600">${r.clientName}</div><div style="font-size:10px;color:var(--text3)">${r.client||''}</div>` : (r.client||'—')}
       </td>
       ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
       <td>${bdg}</td>
-      <td style="font-family:'Roboto Mono',monospace;color:${r.value>0?'#1a8c4e':'var(--text2)'};font-weight:${r.value>0?700:400}">${r.value>0?fBRL(r.value):'—'}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:${fatVal>0?'#1a8c4e':'var(--text2)'};font-weight:${fatVal>0?700:400}">${fatVal>0?fBRL(fatVal):'—'}</td>
       <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${r.dateRaw||'—'}</td>
       <td>${car==='sim' ? `<span class="badge" style="background:#fff3cd;color:#b87a00">SIM</span>` : `<span style="color:var(--text3)">—</span>`}</td>
       <td style="font-family:'Roboto Mono',monospace">${r.contato||'—'}</td>
