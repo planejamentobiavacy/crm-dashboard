@@ -742,8 +742,8 @@ function parseGviz(resp, vendor) {
 function pDate(s){
   if(!s) return null;
   s = String(s).trim();
-  // DD/MM/YYYY HH:MM ou MM/DD/YYYY HH:MM
-  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  // DD/MM/YYYY HH:MM[:SS] ou D/M/YYYY HH:MM[:SS] — formato BR com ou sem zeros
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?/);
   if(m){
     const y   = m[3].length===2 ? '20'+m[3] : m[3];
     const hh  = m[4] ? m[4].padStart(2,'0') : '00';
@@ -755,8 +755,7 @@ function pDate(s){
   }
   m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
   if(m) return new Date(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
-  const d = new Date(s);
-  return isNaN(d) ? null : d;
+  return null;
 }
 function pMoney(s){
   if(!s)return 0;
