@@ -527,86 +527,12 @@ function parseAppsScript(json, vendor) {
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
-
-  console.log(`📊 ${vendor} headers[${headers.length}]:`, headers.join(' | '));
-  console.log(`   META FAT.[${iMeta}] META POSIT.[${iMetaPos}] POSIT.MÊS[${iPositMes}] FAT.MÊS[${iVl}]`);
   if (rows[0]) {
     const get0 = (i) => i >= 0 ? (rows[0][headers[i]]||'?') : '—';
-    console.log(`   ex row[0]: META FAT.="${get0(iMeta)}" META POSIT.="${get0(iMetaPos)}" POSIT.MÊS="${get0(iPositMes)}" FAT.MÊS="${get0(iVl)}"`);
   }
 
   const get = (row, key) => key ? (row[key] || '').trim() : '';
-  const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
-
-  // Log primeiras 3 linhas de DIAS VENDA para debug
-  if (iDv >= 0) {
-    const samples = rows.slice(0,3).map(r => `"${r[headers[iDv]] ?? '(null)'}"`).join(', ');
-    console.log(`   ${vendor} DIAS VENDA amostras:`, samples);
-  }
-
-  const result = [];
-  for (const row of rows) {
-    const clientRaw = iCl >= 0 ? get(row, headers[iCl]) : '';
-    const dateStr   = iDt >= 0 ? get(row, headers[iDt]) : '';
-    if (!clientRaw && !dateStr) continue;
-    const motivoNV  = iMo  >= 0 ? get(row, headers[iMo])  : '';
-    const motivoMot = iMo2 >= 0 ? get(row, headers[iMo2]) : '';
-    result.push({
-      vendor,
-      client:    clientRaw.replace(/\.0+$/, ''),
-      clientName: iCn >= 0 ? get(row, headers[iCn]) : '',
-      dateRaw:   dateStr,
-      date:      pDate(dateStr),
-      value:     iVl   >= 0 ? num(get(row, headers[iVl]))   : 0,
-      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) : 0,
-      metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
-      positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
-      diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
-      carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
-      contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
-      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
-      _via:      'apps-script',
-      _iDv:      iDv,
-      _iCo:      iCo,
-      _rawCols:  headers.map(h => row[h] || ''),
-    });
-  }
-  return result;
-}
-
-// ── CSV PARSER ───────────────────────────────────────────
-function parseCSV(txt, vendor) {
-  if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1); // BOM
-  const lines = txt.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
-
-  const firstLine = lines[0];
-
-  // Auto-detecta delimitador testando ambos e escolhendo o que gera mais colunas
-  const tryDelim = (d) => {
-    const res = []; let cur = ''; let q = false;
-    for (let i = 0; i < firstLine.length; i++) {
-      const ch = firstLine[i];
-      if (ch === '"') { if (q && firstLine[i+1]==='"') { cur+='"'; i++; } else q=!q; }
-      else if (ch === d && !q) { res.push(cur); cur=''; }
-      else cur += ch;
-    }
-    res.push(cur);
-    return res.length;
-  };
-  const colsComma     = tryDelim(',');
-  const colsSemicolon = tryDelim(';');
-  const delim = colsSemicolon > colsComma ? ';' : ',';
-  console.log(`📋 ${vendor}: delim="${delim}" cols_vírgula=${colsComma} cols_ponto-vírgula=${colsSemicolon}`);
-
-  const splitLine = (line) => {
-    const res = []; let cur = ''; let q = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { if (q && line[i+1]==='"') { cur+='"'; i++; } else q=!q; }
-      else if (ch === delim && !q) { res.push(cur); cur=''; }
-      else cur += ch;
-    }
+  const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;}
     res.push(cur);
     return res;
   };
@@ -626,9 +552,6 @@ function parseCSV(txt, vendor) {
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
 
   // Debug: mostra colunas e índices no console
-  console.log(`📋 ${vendor}:`, headers.join(' | '));
-  console.log(`   DIAS VENDA="${C.dv}" → idx:${iDv} | DIAS CONTATO="${C.co}" → idx:${iCo}`);
-  if (iDv >= 0) console.log(`   Ex. diasVenda row1:`, lines[1] ? splitLine(lines[1])[iDv] : '?');
 
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
   const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
@@ -833,10 +756,7 @@ async function loadData(){
       if (vendorRows && vendorRows.length > 0) {
         const headers = Object.keys(vendorRows[0]);
         DATA['__cols__' + name] = headers;
-        console.log(`📋 ${name} headers:`, headers.join(' | '));
-        if (vendorRows[0]) console.log(`   META FAT.="${vendorRows[0]['META FAT.']||'?'}" | META POSIT.="${vendorRows[0]['META POSIT.']||'?'}" | POSIT. MÊS="${vendorRows[0]['POSIT. MÊS']||'?'}"`);
         DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
-        console.log(`✅ Export: ${name} — ${DATA[name].length} clientes | meta=${DATA[name][0]?.meta} metaPos=${DATA[name][0]?.metaPos} positMes=${DATA[name][0]?.positMes}`);
       } else {
         DATA[name] = [];
       }
@@ -967,13 +887,14 @@ function fltPeriodByDate(rows){
   return rows.filter(r => r.date && r.date >= cut);
 }
 
+let _cachedMaxDay = null; // cache para evitar getMaxDay repetido por vendor
+
 function fltPeriod(rows){
   if(PERIOD==='all') return rows;
 
   if(PERIOD==='hoje'){
-    // Hoje = clientes que têm o dia do mês de hoje em DIAS CONTATO ou DIAS VENDA
     const diaHoje = new Date().getDate();
-    const info = getMaxDay(rows);
+    const info = _cachedMaxDay || getMaxDay(rows);
     const maxDate = info ? info.maxDate : null;
     return rows.filter(r => {
       if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
@@ -1002,7 +923,7 @@ function fltPeriod(rows){
   if(PERIOD==='1'){
     const ontem = new Date().getDate() - 1;
     if (ontem <= 0) return [];
-    const info = getMaxDay(rows);
+    const info = _cachedMaxDay || getMaxDay(rows);
     const maxDate = info ? info.maxDate : null;
     return rows.filter(r => {
       if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
@@ -1014,7 +935,7 @@ function fltPeriod(rows){
 
   // N dias: últimos N dias numéricos em DIAS VENDA/CONTATO
   if(!isNaN(parseInt(PERIOD))){
-    const info = getMaxDay(rows);
+    const info = _cachedMaxDay || getMaxDay(rows);
     if (!info) return rows;
     const cutDay = info.maxDay - parseInt(PERIOD) + 1;
     return rows.filter(r => {
@@ -1079,6 +1000,7 @@ function render(){
   }
 }
 function _render(){
+  _cachedMaxDay = null; // reset cache
   const getRaw = (vendor) => (DATA[vendor] || []).map(r => ({...r, vendor}));
   const allRaw = ACTIVE==='all'
     ? getGroupVendors().flatMap(v => getRaw(v))
@@ -1086,6 +1008,7 @@ function _render(){
 
   // ── Deduplica por (vendor + cliente) mantendo data mais recente — para KPIs de contagem
   const dd   = dedup(allRaw);
+  _cachedMaxDay = getMaxDay(dd); // cache para fltPeriod
   const rows = fltPeriod(dd);
 
   // ── Dedup GLOBAL por cliente (sem vendor) — 1 linha por cliente, a mais recente
@@ -1175,8 +1098,6 @@ function _render(){
         if (!k) return;
         if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
         byD[k].positivado.add(clientKey);
-        // DEBUG dia 30
-        if (parseInt(day) === 30) console.log(`🔍 DIA 30 VENDA: ${clientKey} | diasVenda="${dvStr}"`);
       });
     }
   });
@@ -1221,6 +1142,8 @@ function _render(){
   });
 
   // ── Vendor stats — respeitam filtro de período
+  // Pré-calcula getMaxDay uma vez para todo allRaw (evita recalcular por vendedor)
+  const _maxDayInfo = getMaxDay(dd);
   const vs = {};
   getGroupVendors().forEach(v => {
     const vdAll  = dedup(getRaw(v));
@@ -1267,20 +1190,6 @@ function _render(){
     if (ACTIVE === 'all') return vendAtivos.includes(r.vendor);
     return true;
   });
-
-  // Debug: mostra distribuição de vendors e datas na vendas_v1
-  if (VENDAS_V1.length > 0) {
-    const vendCount = {};
-    VENDAS_V1.forEach(r => { vendCount[r.vendor] = (vendCount[r.vendor]||0)+1; });
-    const dateRange = VENDAS_V1.reduce((acc,r) => {
-      if (!r.date) return acc;
-      const d = r.date.toISOString().slice(0,10);
-      if (!acc.min || d < acc.min) acc.min = d;
-      if (!acc.max || d > acc.max) acc.max = d;
-      return acc;
-    }, {min:'',max:''});
-    console.log(`🔍 vendas_v1 total=${VENDAS_V1.length} | datas: ${dateRange.min} → ${dateRange.max} | ACTIVE="${ACTIVE}" | v1Filt=${v1Filt.length}`);
-    console.log(`🔍 vendors na v1:`, JSON.stringify(vendCount));
   }
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
