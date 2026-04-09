@@ -202,7 +202,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <div class="sett" id="sett">
   <div class="sett-g">
     <div class="fl"><label>ID da Planilha</label><input id="s-id" value="1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA"></div>
-    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, LEANDRO, LUCAS, MATHEUS, RAFAEL, ROSANE, SAMARA, THAIS, WESLEY, ALINE, CINTIA, KEULLY"></div>
+    <div class="fl"><label>Abas dos Vendedores (vírgula) — adicione novos conforme forem criando abas no Sheets</label><input id="s-sh" value="ADRIANO, ALEX, AUGUSTO, BRUNO, DEBORAH, DENIS, DOUGLAS, JOYCE, LEANDRO, LUCAS, MARCELO, MATHEUS, NOA, RAFAEL, ROSANE, SAMARA, THAIS, WESLEY, ALINE, CINTIA, KEULLY"></div>
     <div class="fl"><label>Col. Grupo Comercial</label><input id="s-cl" value="GRUPO COMERCIAL"></div>
     <div class="fl"><label>Col. Data Envio</label><input id="s-dt" value="DATA ENVIO"></div>
     <div class="fl"><label>Col. Fat. Mês</label><input id="s-vl" value="FAT. MÊS"></div>
@@ -267,7 +267,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 // ── CONFIG ──────────────────────────────────────────
 const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
-  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','LEANDRO','LUCAS','MATHEUS','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
+  sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
   cl:  'GRUPO COMERCIAL',
   cn:  'CLIENTE',           // coluna nome do cliente
   dt:  'DATA ENVIO',
@@ -860,7 +860,7 @@ async function loadData(){
 
   // Se múltiplas abas têm exatamente o mesmo nº de clientes, mantém só a que
   // está na lista sh original (C.sh) — as outras são fallback
-  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','LEANDRO','LUCAS','MATHEUS','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
+  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
   Object.values(countMap).forEach(vendors => {
     if (vendors.length > 1) {
       // Prefere o que está na lista original; se empate, mantém o último
@@ -1208,10 +1208,12 @@ function render(){
     const vdDate = fltPeriodByDate(vdAll);
     // Faturamento do período via vendas_v1
     const vFat = v1Period.filter(r => r.vendor === v).reduce((a,r) => a + (r.fat||0), 0);
-    // Meta FAT e Meta POSIT das abas PMG (mês inteiro)
-    const vRowsMtd = vdAll.filter(r => r.date && r.date >= iniMes2);
-    const vMetaFat = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
-    const vMetaPos = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    // Meta FAT e Meta POSIT — usa mês mais recente disponível (pode ser mês anterior se ainda não há dados do mês atual)
+    const maxVDate = vdAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
+    const bestMonth = maxVDate.getTime() > 0 ? new Date(maxVDate.getFullYear(), maxVDate.getMonth(), 1) : iniMes2;
+    const vRowsMeta = vdAll.filter(r => r.date && r.date >= bestMonth);
+    const vMetaFat = vRowsMeta.reduce((a,r) => a + (r.meta||0), 0);
+    const vMetaPos = vRowsMeta.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
     // Positivado MTD via vendas_v1
     const vPositSet = new Set(
       VENDAS_V1.filter(r => r.vendor === v && r.date && r.date >= iniMes2 && r.fat > 0)
@@ -1277,7 +1279,10 @@ function render(){
   let totalMetaFat  = 0;
   const iniMes3 = iniMes2;
   vendorsAtivos.forEach(v => {
-    const vRowsMtd = dedup(getRaw(v)).filter(r => r.date && r.date >= iniMes3);
+    const vAll = dedup(getRaw(v));
+    const vMaxDate = vAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
+    const vBestMonth = vMaxDate.getTime() > 0 ? new Date(vMaxDate.getFullYear(), vMaxDate.getMonth(), 1) : iniMes2;
+    const vRowsMtd = vAll.filter(r => r.date && r.date >= vBestMonth);
     const vMetaPos = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
     const vMetaFat = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
     totalMetaPos += vMetaPos;
@@ -1371,7 +1376,8 @@ function render(){
           <div class="vnd-av">${ini}</div>
           <div>
             <div class="vnd-nm">${v}</div>
-            <div class="vnd-sb">${fBRL(s.fat||0)} · ${atFatStr}${atPosStr ? ' · '+atPosStr : ''}</div>
+            <div class="vnd-sb">${fBRL(s.fat||0)}</div>
+            <div class="vnd-sb" style="margin-top:2px">${atFatStr}${atPosStr ? ' · '+atPosStr : ''}</div>
           </div>
         </div>
         <div class="mini">${MINI_ORDER.map(st=>`<div class="mini-s">
