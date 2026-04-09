@@ -947,7 +947,7 @@ function fltPeriod(rows){
     return rows.filter(r => r.date && r.date >= ini);
   }
 
-  // Últ. Dia = dia anterior a hoje (ontem) em DIAS VENDA/CONTATO
+  // Últ. Dia = ontem no calendário (hoje - 1) em DIAS CONTATO/VENDA
   if(PERIOD==='1'){
     const ontem = new Date().getDate() - 1;
     if (ontem <= 0) return [];
@@ -1071,7 +1071,7 @@ function _render(){
     if (PERIOD === '1') {
       const ontem = new Date().getDate() - 1;
       if (ontem <= 0) return 0;
-      const info = getMaxDay(dd);
+      const info = _cachedMaxDay || getMaxDay(dd);
       const maxDate = info ? info.maxDate : null;
       return dd.filter(r => {
         if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
