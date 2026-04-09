@@ -1072,6 +1072,13 @@ function dedup(rows){
 
 // ── RENDER ────────────────────────────────────────────
 function render(){
+  try { _render(); }
+  catch(e) {
+    console.error('❌ render() erro:', e.message, e.stack);
+    document.getElementById('mc').innerHTML = `<div style="padding:20px;color:red">Erro no render: ${e.message}</div>`;
+  }
+}
+function _render(){
   const getRaw = (vendor) => (DATA[vendor] || []).map(r => ({...r, vendor}));
   const allRaw = ACTIVE==='all'
     ? getGroupVendors().flatMap(v => getRaw(v))
