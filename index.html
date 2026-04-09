@@ -1105,13 +1105,26 @@ function render(){
 
   // ── KPIs de contagem
   const rowsByDate  = fltPeriodByDate(dd);  // para Não Venda (DATA ENVIO)
-  const rowsConVen  = rows;                  // Contato/Venda sempre por DIAS CONTATO/VENDA
 
-  const cntPos  = rowsConVen.filter(r => r.value > 0).length;
+  const cntPos  = rows.filter(r => r.value > 0).length;
   const cntNav  = rowsByDate.filter(r => r.motivo && r.motivo.trim()).length;
-  const cntCon  = rowsConVen.filter(r => r.contato && r.contato.trim()).length;
+  // Contato: grupos com dia de ontem em DIAS CONTATO (abas PMG)
+  const cntCon  = (() => {
+    if (PERIOD === '1') {
+      const ontem = new Date().getDate() - 1;
+      if (ontem <= 0) return 0;
+      const info = getMaxDay(dd);
+      const maxDate = info ? info.maxDate : null;
+      return dd.filter(r => {
+        if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
+        return parseDays(r.contato).includes(ontem);
+      }).length;
+    }
+    return rows.filter(r => r.contato && r.contato.trim()).length;
+  })();
   const cntCar  = dd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
-  const cntVen  = rowsConVen.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length;
+  // VENDA: contagem distinta de COD_GC da vendas_v1 com FAT > 0 no período
+  const cntVen  = new Set(v1Period.filter(r => r.fat > 0).map(r => r.codGC).filter(Boolean)).size;
 
   const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
   const total = rows.length;
@@ -1231,7 +1244,7 @@ function render(){
       atPos:       vAtingPos,
       em_carteira: vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
       em_contato:  vd.filter(r => r.contato && r.contato.trim()).length,
-      positivado:  vd.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length,
+      positivado:  new Set(v1Period.filter(r => r.vendor === v && r.fat > 0).map(r => r.codGC).filter(Boolean)).size,
       nao_venda:   vdDate.filter(r => r.motivo && r.motivo.trim()).length,
     };
   });
