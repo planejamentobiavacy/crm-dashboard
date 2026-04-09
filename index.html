@@ -428,7 +428,7 @@ let _asIdx = 0;
 async function loadAllFromAppsScript() {
   try {
     const url = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 30000); return c.signal; })() });
+    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 60000); return c.signal; })() });
     if (r.ok) {
       const txt = await r.text();
       const data = JSON.parse(txt);
@@ -1081,6 +1081,39 @@ function _render(){
     return rows.filter(r => r.contato && r.contato.trim()).length;
   })();
   const cntCar  = dd.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length;
+
+  // ── Datas MTD e v1Period — declarados aqui para uso em cntVen e vendor stats
+  const now2    = new Date();
+  const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
+  const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
+  const vendAtivos = ACTIVE === 'all' ? getGroupVendors() : [ACTIVE];
+
+  const v1Period = VENDAS_V1.filter(r => {
+    if (!r.date) return false;
+    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
+    if (ACTIVE === 'all' && !getGroupVendors().includes(r.vendor)) return false;
+    if (PERIOD === 'all') return true;
+    if (PERIOD === 'hoje') {
+      const hoje = now2.getDate();
+      return r.date.getDate() === hoje && r.date.getMonth() === now2.getMonth() && r.date.getFullYear() === now2.getFullYear();
+    }
+    if (PERIOD === 'mtd') return r.date >= iniMes2;
+    if (PERIOD === 'custom') {
+      if (D_FROM && r.date < D_FROM) return false;
+      if (D_TO   && r.date > D_TO)   return false;
+      return true;
+    }
+    if (PERIOD === '1') {
+      const ontem = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()-1);
+      return r.date >= ontem && r.date < new Date(now2.getFullYear(), now2.getMonth(), now2.getDate());
+    }
+    if (!isNaN(parseInt(PERIOD))) {
+      const cut = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - parseInt(PERIOD) + 1);
+      return r.date >= cut;
+    }
+    return true;
+  });
+
   // VENDA: contagem distinta de COD_GC da vendas_v1 com FAT > 0 no período
   const cntVen  = new Set(v1Period.filter(r => r.fat > 0).map(r => r.codGC).filter(Boolean)).size;
 
@@ -1136,38 +1169,6 @@ function _render(){
     d.positivado = d.positivado.size;
   });
   const dKeys = Object.keys(byD).sort();
-
-  // ── Datas MTD e v1Period — declarados antes de vs para uso nos vendor stats
-  const now2    = new Date();
-  const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
-  const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
-  const vendAtivos = ACTIVE === 'all' ? getGroupVendors() : [ACTIVE];
-
-  const v1Period = VENDAS_V1.filter(r => {
-    if (!r.date) return false;
-    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
-    if (ACTIVE === 'all' && !getGroupVendors().includes(r.vendor)) return false;
-    if (PERIOD === 'all') return true;
-    if (PERIOD === 'hoje') {
-      const hoje = now2.getDate();
-      return r.date.getDate() === hoje && r.date.getMonth() === now2.getMonth() && r.date.getFullYear() === now2.getFullYear();
-    }
-    if (PERIOD === 'mtd') return r.date >= iniMes2;
-    if (PERIOD === 'custom') {
-      if (D_FROM && r.date < D_FROM) return false;
-      if (D_TO   && r.date > D_TO)   return false;
-      return true;
-    }
-    if (PERIOD === '1') {
-      const ontem = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()-1);
-      return r.date >= ontem && r.date < new Date(now2.getFullYear(), now2.getMonth(), now2.getDate());
-    }
-    if (!isNaN(parseInt(PERIOD))) {
-      const cut = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - parseInt(PERIOD) + 1);
-      return r.date >= cut;
-    }
-    return true;
-  });
 
   // ── Vendor stats — respeitam filtro de período
   // Pré-calcula getMaxDay uma vez para todo allRaw (evita recalcular por vendedor)
