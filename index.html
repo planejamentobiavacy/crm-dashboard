@@ -951,10 +951,7 @@ function fltPeriod(rows){
   if(PERIOD==='1'){
     const ontem = new Date().getDate() - 1;
     if (ontem <= 0) return [];
-    const info = _cachedMaxDay || getMaxDay(rows);
-    const maxDate = info ? info.maxDate : null;
     return rows.filter(r => {
-      if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
       const dvDays = parseDays(r.diasVenda);
       const coDays = parseDays(r.contato);
       return dvDays.includes(ontem) || coDays.includes(ontem);
@@ -1071,12 +1068,8 @@ function _render(){
     if (PERIOD === '1') {
       const ontem = new Date().getDate() - 1;
       if (ontem <= 0) return 0;
-      const info = _cachedMaxDay || getMaxDay(dd);
-      const maxDate = info ? info.maxDate : null;
-      return dd.filter(r => {
-        if (maxDate && r.date && r.date.toISOString().slice(0,10) !== maxDate) return false;
-        return parseDays(r.contato).includes(ontem);
-      }).length;
+      // Filtra apenas por dia de ontem em DIAS CONTATO, sem filtro de DATA ENVIO
+      return dd.filter(r => parseDays(r.contato).includes(ontem)).length;
     }
     return rows.filter(r => r.contato && r.contato.trim()).length;
   })();
