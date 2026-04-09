@@ -527,20 +527,47 @@ function parseAppsScript(json, vendor) {
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
-  if (rows[0]) {
-    const get0 = (i) => i >= 0 ? (rows[0][headers[i]]||'?') : '—';
-  }
 
   const get = (row, key) => key ? (row[key] || '').trim() : '';
-  const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;}
-    res.push(cur);
-    return res;
-  };
+  const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
+
+  const result = [];
+  for (const row of rows) {
+    const clientRaw = iCl >= 0 ? get(row, headers[iCl]) : '';
+    const dateStr   = iDt >= 0 ? get(row, headers[iDt]) : '';
+    if (!clientRaw && !dateStr) continue;
+    const motivoNV  = iMo  >= 0 ? get(row, headers[iMo])  : '';
+    const motivoMot = iMo2 >= 0 ? get(row, headers[iMo2]) : '';
+    result.push({
+      vendor,
+      client:    clientRaw.replace(/\.0+$/, ''),
+      clientName: iCn >= 0 ? get(row, headers[iCn]) : '',
+      dateRaw:   dateStr,
+      date:      pDate(dateStr),
+      value:     iVl   >= 0 ? num(get(row, headers[iVl]))     : 0,
+      meta:      iMeta >= 0 ? num(get(row, headers[iMeta]))   : 0,
+      metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
+      positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
+      diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
+      carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
+      contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
+      motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      _via:      'apps-script',
+    });
+  }
+  return result;
+}
+
+function parseCSV(txt, vendor) {
+  const lines = txt.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const splitLine = splitCSV;
 
   const headers = splitLine(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
   DATA['__cols__' + vendor] = headers;
 
   const fi = (name) => {
+    if (!name) return -1;
     const n = name.toLowerCase();
     let i = headers.findIndex(h => h.toLowerCase() === n);
     if (i < 0) i = headers.findIndex(h => h.toLowerCase().includes(n.slice(0,6)));
@@ -550,8 +577,6 @@ function parseAppsScript(json, vendor) {
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
         iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
-
-  // Debug: mostra colunas e índices no console
 
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
   const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
