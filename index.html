@@ -740,14 +740,15 @@ async function loadData(){
   btn.classList.add('ld');
   setLoad(); hideErr();
   DATA = {};
+  const t0 = Date.now();
+  console.log('🔄 Iniciando fetch...');
 
   const allCandidates = C.sh;
-
-  // Carrega dados em paralelo: export (PMG) + vendas_v1 (faturamento real)
   const [exportData] = await Promise.all([
     loadAllFromAppsScript(),
     loadVendasV1()
   ]);
+  console.log(`⏱️ Fetch concluído: ${Date.now()-t0}ms | export=${!!exportData} v1=${VENDAS_V1.length}`);
 
   if (exportData) {
     // Usa dados do export diretamente
@@ -803,7 +804,9 @@ async function loadData(){
   const totalRows = C.sh.reduce((a,v) => a + (DATA[v]||[]).length, 0);
   if (totalRows === 0) showErr('⚠️ Nenhum dado carregado. Verifique o compartilhamento da planilha.');
   document.getElementById('dbar').style.display = 'flex';
+  console.log(`⏱️ Pré-render: ${Date.now()-t0}ms`);
   buildTabs(); render();
+  console.log(`⏱️ Render concluído: ${Date.now()-t0}ms`);
 }
 
 // ── PERIOD ────────────────────────────────────────────
