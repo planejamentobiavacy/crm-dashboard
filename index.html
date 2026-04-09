@@ -1218,7 +1218,6 @@ function _render(){
     if (ACTIVE === 'all') return vendAtivos.includes(r.vendor);
     return true;
   });
-  }
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
   // Positivado MTD = contagem distinta de COD_CLIENTE_LOJA com FAT > 0
