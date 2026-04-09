@@ -187,7 +187,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     </div>
     <div class="hdr-r">
       <span class="upd" id="upd">—</span>
-      <button class="btn btn-w" id="btn-ref" onclick="loadData()">↻ Atualizar</button>
+      <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
       <button id="btn-bell" onclick="clearBell()" style="display:none;position:relative;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:15px" title="Nova atualização na vendas_v1">
         🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle"></span>
         <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
@@ -210,7 +210,6 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div class="fl"><label>Col. Dias Contato</label><input id="s-co" value="DIAS CONTATO"></div>
     <div class="fl"><label>Col. Não Venda</label><input id="s-mo" value="NÃO VENDA"></div>
   </div>
-  <button class="btn" style="background:var(--blue);color:#fff" onclick="saveSett()">💾 Salvar e Recarregar</button>
   <div style="margin-top:20px;border-top:1px solid var(--gray);padding-top:16px">
     <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Vendedores — Última Atualização</div>
     <div id="sett-vendors" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;font-size:12px"></div>
@@ -400,6 +399,10 @@ function toggleSett(){
       <span style="color:var(--text3);font-size:11px">${lastDate}</span>
     </div>`;
   }).join('');
+}
+function saveSettAndLoad(){
+  saveSett();
+  loadData();
 }
 function saveSett(){
   C.id = document.getElementById('s-id').value.trim();
@@ -874,7 +877,9 @@ async function loadData(){
   console.log('✅ Abas ativas:', C.sh.join(', '));
 
   btn.classList.remove('ld');
-  document.getElementById('upd').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+  const now0 = new Date();
+  const pad0 = n => String(n).padStart(2,'0');
+  document.getElementById('upd').textContent = `Atualizado: ${pad0(now0.getDate())}/${pad0(now0.getMonth()+1)} ${pad0(now0.getHours())}:${pad0(now0.getMinutes())}`;
   const totalRows = C.sh.reduce((a,v) => a + (DATA[v]||[]).length, 0);
   if (totalRows === 0) showErr('⚠️ Nenhum dado carregado. Verifique o compartilhamento da planilha.');
   document.getElementById('dbar').style.display = 'flex';
@@ -1166,11 +1171,30 @@ function render(){
   // ── Vendor stats — respeitam filtro de período
   const vs = {};
   getGroupVendors().forEach(v => {
-    const vdAll  = dedup(getRaw(v));                    // todos dedupados
-    const vd     = fltPeriod(vdAll);                    // filtrado por período (DIAS VENDA/CONTATO)
-    const vdDate = fltPeriodByDate(vdAll);              // filtrado por DATA ENVIO (Não Venda)
+    const vdAll  = dedup(getRaw(v));
+    const vd     = fltPeriod(vdAll);
+    const vdDate = fltPeriodByDate(vdAll);
+    // Faturamento do período via vendas_v1
+    const vFat = v1Period.filter(r => r.vendor === v).reduce((a,r) => a + (r.fat||0), 0);
+    // Meta FAT e Meta POSIT das abas PMG (mês inteiro)
+    const vRowsMtd = vdAll.filter(r => r.date && r.date >= iniMes2);
+    const vMetaFat = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
+    const vMetaPos = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    // Positivado MTD via vendas_v1
+    const vPositSet = new Set(
+      VENDAS_V1.filter(r => r.vendor === v && r.date && r.date >= iniMes2 && r.fat > 0)
+               .map(r => r.codClienteLoja)
+    );
+    const vPositMtd = vPositSet.size;
+    const vAtingFat = vMetaFat > 0 ? Math.round((vFat / vMetaFat) * 100) : null;
+    const vAtingPos = vMetaPos > 0 ? Math.round((vPositMtd / vMetaPos) * 100) : null;
     vs[v] = {
-      total:       vdAll.length,
+      fat:         vFat,
+      metaFat:     vMetaFat,
+      atFat:       vAtingFat,
+      positMtd:    vPositMtd,
+      metaPos:     vMetaPos,
+      atPos:       vAtingPos,
       em_carteira: vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
       em_contato:  vd.filter(r => r.contato && r.contato.trim()).length,
       positivado:  vd.filter(r => { const dv = String(r.diasVenda||'').trim(); return dv && dv !== '0'; }).length,
@@ -1336,28 +1360,30 @@ function render(){
     </div>
   </div>`;
 
-  // Vendor breakdown — ordem alfabética, mini na ordem: CARTEIRA, CONTATO, POSITIVADO, NÃO VENDA
+  // Vendor breakdown
   if(ACTIVE==='all'){
     const MINI_ORDER = [
       { key:'em_carteira', lbl:'Carteira',   col:'#b87a00' },
       { key:'em_contato',  lbl:'Contato',    col:'#1a3a8c' },
-      { key:'positivado',  lbl:'Positivado', col:'#1a8c4e' },
+      { key:'positivado',  lbl:'Venda',      col:'#1a8c4e' },
       { key:'nao_venda',   lbl:'Não Venda',  col:'#cc1a1a' },
     ];
     const sortedV = [...C.sh].sort((a,b)=>a.localeCompare(b));
     mc.innerHTML+=`<div class="stitle" style="--al:#a855f7;margin-bottom:14px">Performance por Vendedor</div>
     <div class="vnd-g">${sortedV.map(v=>{
       const s=vs[v]||{},ini=v.slice(0,2).toUpperCase();
-      const vAting = s.meta>0 ? Math.round((s.value/s.meta)*100) : null;
-      const vAtingStr = vAting!=null
-        ? `<span style="font-weight:700;color:${vAting>=100?'#1a8c4e':vAting>=70?'#b87a00':'#cc1a1a'}">${vAting}%</span> meta`
-        : 'sem meta';
+      const atFatStr = s.atFat!=null
+        ? `<span style="color:${s.atFat>=100?'#1a8c4e':s.atFat>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atFat}%</span> fat`
+        : 'sem meta fat';
+      const atPosStr = s.atPos!=null
+        ? `<span style="color:${s.atPos>=100?'#1a8c4e':s.atPos>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atPos}%</span> posit`
+        : '';
       return `<div class="vnd" onclick="swV('${v}')">
         <div class="vnd-h">
           <div class="vnd-av">${ini}</div>
           <div>
             <div class="vnd-nm">${v}</div>
-            <div class="vnd-sb">${fBRL(s.value||0)} · ${vAtingStr}</div>
+            <div class="vnd-sb">${fBRL(s.fat||0)} · ${atFatStr}${atPosStr ? ' · '+atPosStr : ''}</div>
           </div>
         </div>
         <div class="mini">${MINI_ORDER.map(st=>`<div class="mini-s">
@@ -1384,8 +1410,18 @@ function render(){
     return Array.from(m.values());
   };
 
-  const rawForTable = dedupGlobal(allRaw)  // allRaw = todos os registros, dedup pega o mais recente
-    .sort((a,b) => (b.value || 0) - (a.value || 0));
+  // Tabela: filtra por período e ordena por faturamento da vendas_v1 no período
+  const v1PeriodMap = {};
+  v1Period.forEach(r => {
+    const gc = (r.codGC||'').trim();
+    if (gc) v1PeriodMap[gc] = (v1PeriodMap[gc]||0) + (r.fat||0);
+  });
+  const rawForTable = dedupGlobal(fltPeriod(allRaw))
+    .sort((a,b) => {
+      const fatA = v1PeriodMap[(a.client||'').trim()] || 0;
+      const fatB = v1PeriodMap[(b.client||'').trim()] || 0;
+      return fatB - fatA;
+    });
 
   mc.innerHTML+=`
   <div class="tbl-card">
@@ -1424,7 +1460,7 @@ function render(){
     buildEvo(dKeys,byD);
     buildFunil(cntCar, cntCon, cntVen, cntNav, total);
     buildMotivos(rowsByDate);  // Não Venda filtra por DATA ENVIO
-    drawTbl(rawForTable);
+    drawTbl(rawForTable, false, v1PeriodMap);
   });
 }
 
@@ -1587,21 +1623,24 @@ function buildMotivos(rows) {
 }
 
 // ── TABLE ─────────────────────────────────────────────
-function drawTbl(rows, noUpdate){
+function drawTbl(rows, noUpdate, periodMap){
   if(!noUpdate) { _rows = rows; _activeStg = 'all'; }
   const tb = document.getElementById('tb'); if(!tb) return;
   const showV = ACTIVE==='all';
   const sm = {positivado:STAGES[0], nao_venda:STAGES[1], em_contato:STAGES[2], em_carteira:STAGES[3]};
 
-  // Lookup COD_GC → FAT total do mês (vendas_v1)
+  // FAT. MÊS: usa periodMap (período) se disponível, senão v1Map (mês inteiro)
   const now = new Date();
   const iniM = new Date(now.getFullYear(), now.getMonth(), 1);
   const fimM = new Date(now.getFullYear(), now.getMonth()+1, 0);
-  const v1Map = {};
-  VENDAS_V1.filter(r => r.date && r.date >= iniM && r.date <= fimM).forEach(r => {
-    const gc = (r.codGC || '').trim();
-    if (gc) v1Map[gc] = (v1Map[gc] || 0) + (r.fat || 0);
-  });
+  const v1Map = periodMap || {};
+  // Se não recebeu periodMap, constrói do mês inteiro
+  if (!periodMap) {
+    VENDAS_V1.filter(r => r.date && r.date >= iniM && r.date <= fimM).forEach(r => {
+      const gc = (r.codGC || '').trim();
+      if (gc) v1Map[gc] = (v1Map[gc] || 0) + (r.fat || 0);
+    });
+  }
 
   if(!rows.length){
     tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
