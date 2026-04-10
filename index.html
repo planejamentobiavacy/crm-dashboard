@@ -31,7 +31,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text);min-height:100vh}
+body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text);min-height:100vh;overflow-y:scroll}
 
 /* ── HEADER ── */
 .hdr{position:sticky;top:0;z-index:100;background:var(--blue);box-shadow:var(--sh);overflow:hidden;min-height:100px}
@@ -664,21 +664,25 @@ async function loadVendasV1() {
     const kData  = findKey(sampleRow, 'DATA_FAT', 'DATA FAT', 'DATA', 'DATA ENVIO', 'DATA_FAT.');
     const kCodCL = findKey(sampleRow, 'COD_CLIENTE_LOJA', 'COD CLIENTE LOJA', 'CODIGO_CLIENTE', 'COD_GC_LOJA');
     const kCodGC = findKey(sampleRow, 'COD_GC', 'COD GC', 'CODIGO GC', 'GC');
-    console.log(`🔑 Mapeamento: nome=${kNome} fat=${kFat} data=${kData} codCL=${kCodCL} codGC=${kCodGC}`);
+    const kCusto = findKey(sampleRow, 'CUSTO');
+    const kImp   = findKey(sampleRow, 'IMPOSTO');
+    console.log(`🔑 Mapeamento: nome=${kNome} fat=${kFat} data=${kData} codCL=${kCodCL} codGC=${kCodGC} custo=${kCusto} imposto=${kImp}`);
 
     const kExec = findKey(sampleRow, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
+    const pNum  = s => parseFloat((s||'').replace(/[^\d,.-]/g,'').replace(',','.')) || 0;
 
     VENDAS_V1 = data.rows.map(row => {
       const nomeVend = kNome ? (row[kNome] || '').trim().replace(/\s+/g,' ').toUpperCase() : '';
       const vendor   = VENDOR_MAP[nomeVend] || nomeVend;
-      const fatRaw   = kFat ? (row[kFat] || '').replace(/[^\d,.-]/g,'').replace(',','.') : '0';
-      const fat      = parseFloat(fatRaw) || 0;
+      const fat      = kFat  ? pNum(row[kFat])  : 0;
+      const custo    = kCusto? pNum(row[kCusto]) : 0;
+      const imposto  = kImp  ? pNum(row[kImp])   : 0;
       const dateStr  = kData ? (row[kData] || '') : '';
       const codCL    = kCodCL ? (row[kCodCL] || '').trim() : '';
       const codGC    = kCodGC ? (row[kCodGC] || '').trim() : '';
       const date     = pDate(dateStr);
       const execStr  = kExec ? (row[kExec] || '').trim() : '';
-      return { vendor, nomeVend, codClienteLoja: codCL, codGC, fat, date, dateStr, execStr };
+      return { vendor, nomeVend, codClienteLoja: codCL, codGC, fat, custo, imposto, date, dateStr, execStr };
     }).filter(r => r.nomeVend && r.date);
 
     console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas`);
@@ -1223,6 +1227,16 @@ function status(r){
 
 // Keep most recent row per (vendor+client)
 // Retorna meta do vendedor: soma o maior valor de META FAT por GC único do último dia
+// Calcula margem produtiva: 1 - ΣCusto / (ΣFaturamento - ΣImposto)
+function calcMargProd(rows) {
+  const fat    = rows.reduce((a,r) => a+(r.fat||0),    0);
+  const custo  = rows.reduce((a,r) => a+(r.custo||0),  0);
+  const imp    = rows.reduce((a,r) => a+(r.imposto||0),0);
+  const base   = fat - imp;
+  if (base <= 0) return null;
+  return (1 - custo / base) * 100;
+}
+
 function metaUltimoSalv(rows) {
   if (!rows || !rows.length) return 0;
   const vendor = rows[0] && rows[0].vendor;
@@ -1473,6 +1487,8 @@ function _render(){
   });
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
+  const margProdMtd = calcMargProd(v1Filt);
+  const margProdStr = margProdMtd !== null ? margProdMtd.toFixed(1) + '%' : '—';
   // Positivado MTD = contagem distinta de COD_CLIENTE_LOJA com FAT > 0
   const positSet    = new Set(v1Filt.filter(r => r.fat > 0).map(r => r.codClienteLoja));
   const sumPositMes = positSet.size;
@@ -1594,6 +1610,7 @@ function _render(){
   const kpisRow1 = [
     {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', bellId:'kpi-bell-fat'},
     {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanais), kc:'var(--blue)', ating: atingCanais},
+    {ico:'📊', lbl:'Marg. Prod.', sub:'Período (Fat-Imp-Custo)', val:margProdStr, kc:'#1a8c4e'},
     {ico:'💼', lbl:'Carteira',         sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
     {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)',  bellId:'kpi-bell-pmg'},
     {ico:'🛒', lbl:'Venda',            sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
@@ -1641,7 +1658,8 @@ function _render(){
       });
       const fat   = rows.reduce((a,r) => a+(r.fat||0), 0);
       const posit = new Set(rows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
-      return { fat, posit };
+      const marg  = calcMargProd(rows);
+      return { fat, posit, marg };
     };
 
     // Metas por grupo
@@ -1661,7 +1679,9 @@ function _render(){
         pmgVendors.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
           const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
           const vAll=dedup(vRaw);
-          mFat+=metaUltimoSalv(vRaw);
+          const vm = metaUltimoSalv(vRaw);
+          console.log(`🔍 getMeta pmg vendor=${v} metaUltimoSalv=${vm}`);
+          mFat+=vm;
           const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
           const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
           const vMtd=vAll.filter(r=>r.date&&r.date>=vBest);
@@ -1671,7 +1691,7 @@ function _render(){
       return { mFat, mPos };
     };
 
-    const miniCard = (lbl, val, meta, type, grp, isAvacy, pmgHava) => {
+    const miniCard = (lbl, val, meta, type, grp, isAvacy, pmgHava, marg) => {
       const pct = meta>0 ? Math.round((val/meta)*100) : null;
       const col = pct==null?'#888':pct>=100?'#1a8c4e':pct>=70?'#b87a00':'#cc1a1a';
       const valStr = type==='fat' ? fBRL(val) : val.toString();
@@ -1722,6 +1742,8 @@ function _render(){
           <div style="display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1">
             <div style="font-size:13px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px">${lbl}</div>
             <div style="font-size:26px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
+              ${type==='fat'&&marg!=null?`<div style="font-size:12px;color:var(--text3);margin-top:3px;font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
+            
             ${(!pmgHava && metaStr)?`<div style="font-size:12px;color:${metaC};margin-top:6px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
             ${(!pmgHava && pct!=null)?`
               <div style="margin-top:15px">
@@ -1738,6 +1760,7 @@ function _render(){
       return `<div onclick="setGroup('${grp}')" style="width:240px;flex-shrink:0;background:${bg};border:2px solid ${border};border-radius:10px;border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};padding:8px 14px;cursor:pointer;transition:all .2s;text-align:left;box-shadow:${isActive?'0 2px 8px rgba(26,58,140,.15)':'none'}">
         <div style="font-size:11px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">${lbl}</div>
         <div style="font-size:20px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
+        ${type==='fat' && marg!=null?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
         ${metaStr?`<div style="font-size:11px;color:${metaC};margin-top:2px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
         ${pct!=null?`
           <div style="margin-top:5px">
@@ -1808,16 +1831,18 @@ function _render(){
       const pmgHavaMPos = pmgHavaGroups.reduce((a,g) => a + getMeta(g.pmg||[],g.ch,g.grp).mPos, 0);
 
       const buildRow = (type, avacyVal, avacyMeta) => {
-        const avacyCard = miniCard('AVACY', avacyVal, avacyMeta, type, 'all', true, type==='pos' ? { posit: pmgHavaPos, meta: pmgHavaMPos } : null);
+        // Calcular margem AVACY MTD
+        const avacyMarg = type==='fat' ? calcMargProd(VENDAS_V1.filter(r=>r.date&&r.date>=iniMes2&&r.date<=fimMes2)) : null;
+        const avacyCard = miniCard('AVACY', avacyVal, avacyMeta, type, 'all', true, type==='pos' ? { posit: pmgHavaPos, meta: pmgHavaMPos } : null, avacyMarg);
         const row1Cards = lvl1.map(g => {
-          const {fat,posit} = calcMtd(g.pmg||[],g.ch);
+          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch);
           const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
-          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false);
+          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false, null, type==='fat'?marg:null);
         }).join('');
         const row2Cards = lvl2.map(g => {
-          const {fat,posit} = calcMtd(g.pmg||[],g.ch);
+          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch);
           const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
-          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false);
+          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false, null, type==='fat'?marg:null);
         }).join('');
         return `${avacyCard}
           <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
@@ -1832,7 +1857,7 @@ function _render(){
   }
 
   mc.innerHTML += `
-    <div class="kpi-g" style="grid-template-columns:repeat(6,1fr);margin-bottom:22px">
+    <div class="kpi-g" style="grid-template-columns:repeat(7,1fr);margin-bottom:22px">
       ${kpisRow1.map(kpiHtml).join('')}
     </div>`;
 
