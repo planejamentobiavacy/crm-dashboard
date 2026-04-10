@@ -47,7 +47,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text)
 .hdr-inner{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:22px 36px;flex-wrap:wrap;gap:12px}
 .logo{display:flex;align-items:center;gap:14px}
 .logo-ico{width:50px;height:50px;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.3);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;}
-.logo-txt .t1{font-size:20px;font-weight:900;letter-spacing:-.5px;color:var(--white)}
+.logo-txt .t1{font-size:24px;font-weight:900;letter-spacing:-.5px;color:var(--white)}
 .logo-txt .t2{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.7)}
 .hdr-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .upd{font-family:'Roboto Mono',monospace;font-size:11px;color:rgba(255,255,255,.6)}
@@ -87,9 +87,9 @@ main{padding:26px 36px;max-width:1600px;margin:0 auto}
 .kpi:hover{transform:translateY(-3px);box-shadow:var(--sh2)}
 .kpi-bar{position:absolute;top:0;left:0;right:0;height:4px;background:var(--kc,var(--blue));border-radius:var(--r) var(--r) 0 0}
 .kpi-ico{position:absolute;top:14px;right:14px;font-size:30px;opacity:.1}
-.kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:9px}
-.kpi-val{font-family:'Montserrat',sans-serif;font-size:28px;font-weight:700;color:var(--text);line-height:1;margin-bottom:5px}
-.kpi-val.sm{font-size:19px}.kpi-val.lg{font-family:'Montserrat',sans-serif;font-size:30px;font-weight:800}.kpi-sub{font-size:11px;color:var(--text3);font-weight:500}
+.kpi-lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:7px}
+.kpi-val{font-family:'Montserrat',sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px}
+.kpi-val.sm{font-size:15px}.kpi-val.lg{font-family:'Montserrat',sans-serif;font-size:24px;font-weight:800}.kpi-sub{font-size:9px;color:var(--text3);font-weight:500}
 
 /* ── SECTION TITLE ── */
 .stitle{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -155,6 +155,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 .st-ico{font-size:44px;opacity:.3}.st-box p{font-size:14px;font-weight:600}
 .spin{width:36px;height:36px;border:3px solid var(--gray);border-top-color:var(--blue);border-radius:50%;animation:sp .75s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+@keyframes bellPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.85}}
 .err{background:#fff3f3;border:1.5px solid #ffc5c5;border-radius:10px;padding:12px 18px;color:var(--red);font-size:13px;font-weight:600;margin-bottom:18px;display:none}
 .err.on{display:block}
 .fin{animation:fi .35s ease}
@@ -181,15 +182,18 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div class="logo">
       <div class="logo-ico">📊</div>
       <div class="logo-txt">
-        <div class="t1">CRM · Funil de Vendas</div>
+        <div class="t1">CRM · Metas Comerciais</div>
         <div class="t2">Consolidado de Vendedores</div>
       </div>
     </div>
     <div class="hdr-r">
-      <span class="upd" id="upd">—</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+        <span class="upd" id="upd">—</span>
+        <span class="upd" id="upd-v1" style="display:none"></span>
+      </div>
       <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
-      <button id="btn-bell" onclick="loadData()" style="display:none;position:relative;background:#ff6b35;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:700" title="Há dados novos no G.Sheets — clique para atualizar">
-        🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">Atualizar</span>
+      <button id="btn-bell" onclick="saveSettAndLoad()" style="display:none;position:relative;background:#1a3a8c;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700" title="Novo salvamento no PMG — clique para atualizar">
+        🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">PMG</span>
         <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
       </button>
       <button class="btn btn-r" onclick="toggleSett()">⚙ Configurar</button>
@@ -228,17 +232,22 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 </div>
 
 
-<div class="tabs" style="display:flex;align-items:center;gap:0">
-  <div id="tab-all" class="vtab active" onclick="setGroup('all');document.querySelectorAll('.vtab').forEach(v=>v.classList.remove('active'));this.classList.add('active')">🌐 Todos</div>
-  <div id="btn-farmer" class="vtab" onclick="setGroup('farmer')" style="color:#b87a00">🌾 Farmer</div>
-  <div id="btn-developer" class="vtab" onclick="setGroup('developer')" style="color:#1a3a8c">💻 Developer</div>
-  <div style="width:1px;height:24px;background:rgba(0,0,0,.12);margin:0 4px"></div>
-  <div id="tabs" style="display:flex;overflow-x:auto"></div>
+<!-- MTD CARDS BAR -->
+<div id="mtd-bar" style="display:none;padding:14px 36px 16px;background:var(--white);border-bottom:1px solid var(--gray)">
+  <div style="margin-bottom:14px">
+    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a3a8c;border-radius:2px"></span>💰 Faturamento MTD</div>
+    <div id="mtd-fat-row" style="display:flex;gap:8px;align-items:stretch;width:100%"></div>
+  </div>
+  <div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a8c4e;border-radius:2px"></span>✅ Positivação MTD</div>
+    <div id="mtd-pos-row" style="display:flex;gap:8px;align-items:stretch;width:100%"></div>
+  </div>
+  <div id="mtd-cards" style="display:none"></div>
 </div>
 
-<!-- MTD CARDS BAR -->
-<div id="mtd-bar" style="display:none;padding:10px 36px;background:var(--off);border-bottom:1px solid var(--gray)">
-  <div id="mtd-cards" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:600px"></div>
+<!-- VENDOR TABS BAR (oculto) -->
+<div id="vtabs-bar" style="display:none">
+  <div id="tabs" style="display:none"></div>
 </div>
 
 <!-- DATE BAR -->
@@ -248,12 +257,34 @@ tbody td:first-child{font-weight:700;color:var(--text)}
   <div class="dchip" onclick="setPeriod('hoje',this)">Hoje</div>
   <div class="dchip" onclick="setPeriod('1',this)">Últ. Dia</div>
   <div class="dchip" onclick="setPeriod('7',this)">7 dias</div>
-  <div class="dchip" onclick="setPeriod('mtd',this)">MTD</div>
   <div class="dchip" onclick="setPeriod('custom',this)">Personalizado</div>
   <input type="date" class="dinp" id="d-from" style="display:none" onchange="applyDates()">
   <span id="d-sep" style="display:none;color:var(--text3);font-size:12px">até</span>
   <input type="date" class="dinp" id="d-to" style="display:none" onchange="applyDates()">
 </div>
+
+<!-- GROUP FILTER BAR -->
+<div class="dbar" id="gbar" style="display:none;background:var(--white);border-bottom:2px solid var(--gray)">
+  <span class="dlbl">📋 CANAL:</span>
+  <div class="dchip active" id="gchip-all"       onclick="setGroupChip('all')"      >Todos</div>
+  <div class="dchip"        id="gchip-farmer"    onclick="setGroupChip('farmer')"   >Farmer</div>
+  <div class="dchip"        id="gchip-developer" onclick="setGroupChip('developer')">Developer</div>
+  <div class="dchip"        id="gchip-closer"    onclick="setGroupChip('closer')"   >Closer</div>
+  <div class="dchip"        id="gchip-martins"   onclick="setGroupChip('martins')"  >Martins</div>
+  <div class="dchip"        id="gchip-rca"       onclick="setGroupChip('rca')"      >RCA</div>
+  <div class="dchip"        id="gchip-ka"        onclick="setGroupChip('ka')"       >KA</div>
+  <div class="dchip"        id="gchip-hava"      onclick="setGroupChip('hava')"     >Hava</div>
+</div>
+
+<!-- BANNER ATUALIZANDO -->
+<div id="updating-banner" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;background:var(--white);border-radius:16px;padding:28px 40px;box-shadow:0 12px 48px rgba(26,58,140,.22);border:2px solid var(--gray);text-align:center;min-width:260px">
+  <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px">
+    <div style="width:20px;height:20px;border:3px solid var(--gray);border-top-color:var(--blue);border-radius:50%;animation:sp .75s linear infinite;flex-shrink:0"></div>
+    <div style="font-size:16px;font-weight:800;color:var(--text);letter-spacing:.3px">Atualizando dados…</div>
+  </div>
+  <div style="font-size:11px;color:var(--text3);font-weight:500">Carregando carteiras dos vendedores</div>
+</div>
+<div id="updating-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:rgba(244,246,251,.55);backdrop-filter:blur(2px)"></div>
 
 <!-- MAIN -->
 <main>
@@ -265,6 +296,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 
 <script>
 // ── CONFIG ──────────────────────────────────────────
+const AVACY_LOGO='data:image/jpeg;base64,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';
 const C = {
   id:  '1kL0VeAavKt8SwadCOxkvS3BxklZeYnr-huwuobaqPAA',
   sh:  ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'],
@@ -290,7 +322,7 @@ const STAGES = [
 ];
 
 // ── STATE ────────────────────────────────────────────
-let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all';
+let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all', VENDOR_HIGHLIGHT = null;
 
 // Mapeamento NOME_VENDEDOR (vendas_v1) → nome da aba
 const VENDOR_MAP = {
@@ -317,7 +349,78 @@ const VENDOR_MAP = {
   'WESLEY BRITO':            'WESLEY',
 };
 
-let VENDAS_V1 = []; // dados brutos da aba vendas_v1 {vendor, codClienteLoja, fat, date}
+let VENDAS_V1 = []; // dados brutos da aba vendas_v1
+let META_OUTROS = {}; // { NOME_VENDEDOR: { metaFat, metaPos, canal } }
+let CONSOLIDADO_DATAS = {}; // { VENDEDOR: 'DD/MM/YYYY HH:MM' } — última data de salvamento
+
+async function loadConsolidado() {
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
+    const c = new AbortController(); setTimeout(() => c.abort(), 15000);
+    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data?.rows?.length) return;
+
+    const map = {}; // vendedor → { dateObj, dateStr }
+    const today = new Date();
+    const maxReasonable = new Date(today.getFullYear(), today.getMonth() + 2, 1); // máximo 2 meses no futuro
+
+    data.rows.forEach(row => {
+      const vendedor  = (row['VENDEDOR'] || '').trim().toUpperCase();
+      const dataEnvio = (row['DATA ENVIO'] || '').trim();
+      if (!vendedor || !dataEnvio) return;
+
+      let parsed = pDate(dataEnvio);
+      if (!parsed) return;
+
+      // Se a data parecer no futuro (> 2 meses), tenta inverter dia/mês
+      if (parsed > maxReasonable) {
+        const m = dataEnvio.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+        if (m) {
+          const inverted = pDate(`${m[2]}/${m[1]}/${m[3]}${dataEnvio.slice(m[0].length)}`);
+          if (inverted && inverted <= maxReasonable) parsed = inverted;
+        }
+      }
+
+      if (!map[vendedor] || parsed > map[vendedor].dateObj) {
+        const pad = n => String(n).padStart(2,'0');
+        const str = `${pad(parsed.getDate())}/${pad(parsed.getMonth()+1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+        map[vendedor] = { dateObj: parsed, dateStr: str };
+      }
+    });
+
+    CONSOLIDADO_DATAS = {};
+    Object.entries(map).forEach(([v, obj]) => { CONSOLIDADO_DATAS[v] = obj.dateStr; });
+    console.log(`✅ CONSOLIDADO: ${Object.keys(CONSOLIDADO_DATAS).length} vendedores`);
+  } catch(e) {
+    console.warn('❌ CONSOLIDADO falhou:', e.message);
+  }
+}
+
+async function loadMetaOutros() {
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=META_OUTROS&t=${Date.now()}`;
+    const c = new AbortController(); setTimeout(() => c.abort(), 15000);
+    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data?.rows?.length) return;
+    META_OUTROS = {};
+    data.rows.forEach(row => {
+      const nome = (row['VENDEDOR'] || '').trim().toUpperCase();
+      if (!nome) return;
+      const metaFat  = parseFloat((row['META FAT']  ||'0').replace(/[^\d,.]/g,'').replace(',','.')) || 0;
+      const metaPos  = parseFloat((row['META POSIT'] ||'0').replace(/[^\d,.]/g,'').replace(',','.')) || 0;
+      const canal    = (row['CANAL'] || '').trim().toLowerCase();
+      META_OUTROS[nome] = { metaFat, metaPos, canal };
+    });
+    console.log(`✅ META_OUTROS: ${Object.keys(META_OUTROS).length} vendedores`);
+  } catch(e) {
+    console.warn('❌ META_OUTROS falhou:', e.message);
+  }
+}
+
 let D_FROM = null, D_TO = null, CH = null;
 let _lastV1MaxDate = null;   // última data máxima da vendas_v1
 let _lastPmgMaxDate = null;  // última DATA ENVIO máxima das abas PMG
@@ -335,15 +438,30 @@ function getPmgMaxDate() {
   return max;
 }
 
+let _alertFat = false;
+let _alertPmg = false;
+
 function showBell(label) {
-  document.getElementById('bell-label').textContent = label || '';
+  // Label fixo "PMG" — não sobrescreve
   document.getElementById('btn-bell').style.display = '';
+  if (label === 'novo fat') { _alertFat = true; updateAlertBells(); }
+  if (label === 'novo pmg') { _alertPmg = true; updateAlertBells(); }
 }
 
 function clearBell() {
   _lastV1MaxDate  = getV1MaxDate();
   _lastPmgMaxDate = getPmgMaxDate();
+  _alertFat = false;
+  _alertPmg = false;
   document.getElementById('btn-bell').style.display = 'none';
+  updateAlertBells();
+}
+
+function updateAlertBells() {
+  const fatBell = document.getElementById('kpi-bell-fat');
+  const pmgBell = document.getElementById('kpi-bell-pmg');
+  if (fatBell) fatBell.style.display = _alertFat ? 'inline-flex' : 'none';
+  if (pmgBell) pmgBell.style.display = _alertPmg ? 'inline-flex' : 'none';
 }
 
 async function checkUpdates() {
@@ -386,10 +504,30 @@ setInterval(checkUpdates, 3 * 60 * 1000);
 let _rows = [];
 
 const DEVELOPER_VENDORS = ['ALINE','CINTIA','KEULLY'];
-const getFarmerVendors  = () => C.sh.filter(v => !DEVELOPER_VENDORS.includes(v));
-const getGroupVendors   = () => {
+const HAVA_PMG_VENDORS  = ['SAMARA']; // vendedores com aba PMG mas que pertencem ao canal HAVA
+const getFarmerVendors  = () => C.sh.filter(v => !DEVELOPER_VENDORS.includes(v) && !HAVA_PMG_VENDORS.includes(v));
+
+// ── Canais — vendedores da vendas_v1 que não têm aba PMG
+// Mapeados pelo NOME_VENDEDOR da vendas_v1
+const CHANNEL_DEFS = {
+  closer:  ['GIOVANA RENATA TABORDA','JULIA DE PAULA','KAROLINE DA SILVA JESUS','CASSIA APOLINARIO','JOÃO RACHID','VINICIUS QUEIROZ','JOSE VINICIUS','VINICIUS SANTOS PEREIRA'],
+  martins: ['MARTINS'],
+  ka:      ['RUBIA PAOLETTI','GABRIELLA DIAS'],
+  hava:    ['SAMARA FERNANDES','GIULLIANO MIOR','HAVA'],
+  // RCA: todos que iniciam com "RCA - "
+};
+const isRCA = (name) => (name||'').toUpperCase().startsWith('RCA');
+const getChannelVendors = (ch) => {
+  if (ch === 'rca') return [...new Set(VENDAS_V1.map(r => r.nomeVend).filter(isRCA))];
+  return CHANNEL_DEFS[ch] || [];
+};
+const CHANNELS = ['closer','martins','rca','ka','hava'];
+
+const getGroupVendors = () => {
   if (GROUP === 'developer') return C.sh.filter(v => DEVELOPER_VENDORS.includes(v));
   if (GROUP === 'farmer')    return getFarmerVendors();
+  if (GROUP === 'hava')      return HAVA_PMG_VENDORS.filter(v => C.sh.includes(v)); // SAMARA tem aba PMG
+  if (CHANNELS.includes(GROUP)) return []; // outros canais usam vendas_v1, não abas PMG
   return C.sh;
 };
 
@@ -450,22 +588,26 @@ let _cbIdx = 0;
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdXi5KGvDjWl09RMUDr1KixpMZFFcmYGcmUXqDTn-hutNpkS-7Dp8K_GuUNAxOClOt/exec';
 let _asIdx = 0;
 
-// Carrega TODOS os vendedores de uma vez via action=export
+// Carrega TODOS os vendedores via cache (rápido) ou ao vivo (fallback)
 async function loadAllFromAppsScript() {
   try {
-    const url = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 60000); return c.signal; })() });
+    // Tenta cache primeiro — resposta em ~200ms se o trigger estiver ativo
+    const url = `${APPS_SCRIPT_URL}?action=exportCached&t=${Date.now()}`;
+    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 30000); return c.signal; })() });
     if (r.ok) {
       const txt = await r.text();
       const data = JSON.parse(txt);
       if (data && data.status === 'ok' && data.vendedores) {
-        // Filtra apenas vendedores da lista C.sh — ignora abas extras da planilha
         const filtered = {};
         Object.keys(data.vendedores).forEach(nome => {
           if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-          else console.log(`⚠️ Aba "${nome}" ignorada — não está na lista de vendedores`);
         });
-        console.log(`✅ Export: ${Object.keys(filtered).length} vendedores carregados (${Object.keys(data.vendedores).length} total na planilha)`);
+        const src = data._fromCache ? '⚡ cache' : '🔄 ao vivo';
+        console.log(`✅ Export (${src}): ${Object.keys(filtered).length} vendedores`);
+        // Se veio do cache, dispara refresh silencioso em background para atualizar o cache
+        if (data._fromCache) {
+          setTimeout(() => warmServerCache(), 500);
+        }
         return filtered;
       }
     }
@@ -475,38 +617,85 @@ async function loadAllFromAppsScript() {
   return null;
 }
 
+// Aquece o cache no servidor em background (sem bloquear a UI)
+async function warmServerCache() {
+  try {
+    await fetch(`${APPS_SCRIPT_URL}?action=exportFresh&t=${Date.now()}`, {
+      redirect: 'follow',
+      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 45000); return c.signal; })()
+    });
+    console.log('🔥 Cache do servidor atualizado em background');
+  } catch(e) {
+    // silencioso — não afeta a UI
+  }
+}
+
 // Carrega aba vendas_v1 para Faturamento e Positivado MTD
 async function loadVendasV1() {
   try {
-    const url = `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`;
-    console.log('🔄 vendas_v1: carregando...');
+    // Usa action=vendas_v1 (compatível com o Apps Script original)
+    const url = `${APPS_SCRIPT_URL}?action=vendas_v1&t=${Date.now()}`;
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 30000);
+    setTimeout(() => ctrl.abort(), 15000);
     const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
-    console.log(`📡 vendas_v1: status=${r.status} ok=${r.ok}`);
     if (!r.ok) { console.warn('❌ vendas_v1: status não ok'); return; }
     const txt = await r.text();
-    console.log(`📄 vendas_v1: resposta ${txt.length} chars, início: ${txt.slice(0,100)}`);
     let data;
     try { data = JSON.parse(txt); } catch(e) { console.warn('❌ vendas_v1: JSON inválido', e.message); return; }
-    console.log(`📦 vendas_v1: status="${data.status}" rows=${data.rows?.length} headers=${data.headers?.length} error="${data.error||''}"`);
-    if (!data || !data.rows || !data.headers) { console.warn('❌ vendas_v1: sem rows/headers'); return; }
+
+    if (!data || !data.rows || !data.rows.length) { console.warn('❌ vendas_v1: sem rows'); return; }
+
+    // Log dos campos disponíveis para diagnóstico
+    const availableKeys = Object.keys(data.rows[0] || {});
+    console.log(`📦 vendas_v1: ${data.rows.length} rows | campos: ${availableKeys.join(', ')}`);
+
+    // Detecta automaticamente os nomes das colunas (case-insensitive)
+    const findKey = (row, ...candidates) => {
+      const keys = Object.keys(row);
+      for (const c of candidates) {
+        const found = keys.find(k => k.trim().toUpperCase() === c.toUpperCase());
+        if (found) return found;
+      }
+      return null;
+    };
+    const sampleRow = data.rows[0];
+    const kNome  = findKey(sampleRow, 'NOME_VENDEDOR', 'VENDEDOR', 'NOME VENDEDOR');
+    const kFat   = findKey(sampleRow, 'FATURAMENTO', 'FAT', 'FAT. MÊS', 'FAT.MES', 'VALOR');
+    const kData  = findKey(sampleRow, 'DATA_FAT', 'DATA FAT', 'DATA', 'DATA ENVIO', 'DATA_FAT.');
+    const kCodCL = findKey(sampleRow, 'COD_CLIENTE_LOJA', 'COD CLIENTE LOJA', 'CODIGO_CLIENTE', 'COD_GC_LOJA');
+    const kCodGC = findKey(sampleRow, 'COD_GC', 'COD GC', 'CODIGO GC', 'GC');
+    console.log(`🔑 Mapeamento: nome=${kNome} fat=${kFat} data=${kData} codCL=${kCodCL} codGC=${kCodGC}`);
+
+    const kExec = findKey(sampleRow, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
 
     VENDAS_V1 = data.rows.map(row => {
-      const nomeVend = (row['NOME_VENDEDOR'] || '').trim().toUpperCase();
+      const nomeVend = kNome ? (row[kNome] || '').trim().replace(/\s+/g,' ').toUpperCase() : '';
       const vendor   = VENDOR_MAP[nomeVend] || nomeVend;
-      const fatRaw   = (row['FATURAMENTO'] || '').replace(/[^\d,.-]/g,'').replace(',','.');
+      const fatRaw   = kFat ? (row[kFat] || '').replace(/[^\d,.-]/g,'').replace(',','.') : '0';
       const fat      = parseFloat(fatRaw) || 0;
-      const dateStr  = row['DATA_FAT'] || '';
-      const codCL    = (row['COD_CLIENTE_LOJA'] || '').trim();
-      const codGC    = (row['COD_GC'] || '').trim();
+      const dateStr  = kData ? (row[kData] || '') : '';
+      const codCL    = kCodCL ? (row[kCodCL] || '').trim() : '';
+      const codGC    = kCodGC ? (row[kCodGC] || '').trim() : '';
       const date     = pDate(dateStr);
-      return { vendor, codClienteLoja: codCL, codGC, fat, date, dateStr };
-    }).filter(r => r.vendor && r.date);
+      const execStr  = kExec ? (row[kExec] || '').trim() : '';
+      return { vendor, nomeVend, codClienteLoja: codCL, codGC, fat, date, dateStr, execStr };
+    }).filter(r => r.nomeVend && r.date);
 
-    console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas | ex: vendor="${VENDAS_V1[0]?.vendor}" fat=${VENDAS_V1[0]?.fat} date=${VENDAS_V1[0]?.dateStr}`);
+    console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas`);
     _lastV1MaxDate  = getV1MaxDate();
     _lastPmgMaxDate = getPmgMaxDate();
+    // Atualiza label "Venda atualizada até" — usa DT_EXECUCAO (data/hora da última execução)
+    const execMax = VENDAS_V1.reduce((max, r) => {
+      const d = pDate(r.execStr);
+      return d && d > max ? d : max;
+    }, new Date(0));
+    const dateForLabel = execMax.getTime() > 0 ? execMax : getV1MaxDate();
+    if (dateForLabel.getTime() > 0) {
+      const pad2 = n => String(n).padStart(2,'0');
+      const v1Str = `${pad2(dateForLabel.getDate())}/${pad2(dateForLabel.getMonth()+1)} ${pad2(dateForLabel.getHours())}:${pad2(dateForLabel.getMinutes())}`;
+      const el = document.getElementById('upd-v1');
+      if (el) { el.textContent = `Venda atualizada até ${v1Str}`; el.style.display = ''; }
+    }
   } catch(e) {
     console.warn('❌ vendas_v1 falhou:', e.message);
   }
@@ -572,7 +761,7 @@ function parseAppsScript(json, vendor) {
       dateRaw:   dateStr,
       date:      pDate(dateStr),
       value:     iVl   >= 0 ? num(get(row, headers[iVl]))     : 0,
-      meta:      iMeta >= 0 ? num(get(row, headers[iMeta]))   : 0,
+      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) : 0,
       metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
       positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
@@ -742,7 +931,7 @@ function parseGviz(resp, vendor) {
       dateRaw:    dateStr,
       date:       gDate(row, iDt),
       value:      gNum(row, iVl),
-      meta:       gNum(row, iMeta) * 1000,
+      meta:       Math.round(gNum(row, iMeta)) * 1000,
       metaPos:    gNum(row, iMetaPos),
       positMes:   gNum(row, iPositMes),
       diasVenda:  gStrFull(row, iDv),
@@ -759,26 +948,34 @@ function parseGviz(resp, vendor) {
 function pDate(s){
   if(!s) return null;
   s = String(s).trim();
-  // YYYYMMDD (ex: 20260407) — parse como hora local para evitar problema de timezone
+  // YYYYMMDD (ex: 20260407)
   if (/^\d{8}$/.test(s)) {
     const y = parseInt(s.slice(0,4));
     const mo = parseInt(s.slice(4,6)) - 1;
     const d = parseInt(s.slice(6,8));
     return new Date(y, mo, d);
   }
-  // DD/MM/YYYY HH:MM[:SS] ou D/M/YYYY HH:MM[:SS] — formato BR com ou sem zeros
-  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?/);
+  // YYYY-MM-DD ou YYYY/MM/DD (ISO) — força hora local para evitar problema de fuso (UTC-3)
+  let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::\d{2})?)?/);
+  if(m) {
+    const hh = m[4] ? m[4].padStart(2,'0') : '00';
+    const mm5 = m[5] ? m[5].padStart(2,'0') : '00';
+    return new Date(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${hh}:${mm5}:00`);
+  }
+  // DD/MM/YYYY HH:MM[:SS] — Apps Script sempre envia neste formato
+  // Assume SEMPRE que o primeiro campo é o DIA (formato BR)
+  // Só troca se o primeiro campo for claramente um mês (> 12 impossível como dia)
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?/);
   if(m){
     const y   = m[3].length===2 ? '20'+m[3] : m[3];
     const hh  = m[4] ? m[4].padStart(2,'0') : '00';
     const mm5 = m[5] ? m[5].padStart(2,'0') : '00';
     let day = parseInt(m[1]), mon = parseInt(m[2]);
-    // Se mês > 12, está no formato MM/DD — troca
-    if (mon > 12) { const tmp = day; day = mon; mon = tmp; }
+    // Só troca se dia > 12 (impossível como dia, mas válido como mês) — formato MM/DD
+    if (day > 12 && mon <= 12) { const tmp = day; day = mon; mon = tmp; }
+    // Se ambos ≤ 12: assume DD/MM (formato BR — padrão do Apps Script)
     return new Date(`${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}T${hh}:${mm5}:00`);
   }
-  m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-  if(m) return new Date(`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`);
   return null;
 }
 function pMoney(s){
@@ -790,20 +987,46 @@ function pMoney(s){
 async function loadData(){
   const btn = document.getElementById('btn-ref');
   btn.classList.add('ld');
+  document.getElementById('btn-bell').style.display = 'none';
   setLoad(); hideErr();
   DATA = {};
+  _alertFat = false; _alertPmg = false;
   const t0 = Date.now();
-  console.log('🔄 Iniciando fetch...');
+  console.log('🔄 Iniciando fetch paralelo...');
 
   const allCandidates = C.sh;
-  const [exportData] = await Promise.all([
-    loadAllFromAppsScript(),
-    loadVendasV1()
-  ]);
-  console.log(`⏱️ Fetch concluído: ${Date.now()-t0}ms | export=${!!exportData} v1=${VENDAS_V1.length}`);
+  allCandidates.forEach(name => { DATA[name] = []; });
+
+  // Dispara as 4 fetches SIMULTANEAMENTE
+  const promiseV1   = loadVendasV1();
+  const promiseMeta = loadMetaOutros();
+  const promisePmg  = loadAllFromAppsScript();
+  const promiseCons = loadConsolidado();
+
+  // Mostra banner de atualização imediatamente
+  document.getElementById('updating-banner').style.display = 'block';
+  document.getElementById('updating-overlay').style.display = 'block';
+
+  // Fase 1: assim que vendas_v1 + META_OUTROS chegarem — renderiza parcial
+  await Promise.all([promiseV1, promiseMeta, promiseCons]);
+  console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length}`);
+
+  btn.classList.remove('ld');
+  const now0a = new Date();
+  const pad0a = n => String(n).padStart(2,'0');
+  document.getElementById('upd').textContent = `Dados Atualizados em ${pad0a(now0a.getDate())}/${pad0a(now0a.getMonth()+1)} ${pad0a(now0a.getHours())}:${pad0a(now0a.getMinutes())}`;
+  document.getElementById('dbar').style.display = 'flex';
+  document.getElementById('gbar').style.display = 'flex';
+  document.getElementById('vtabs-bar').style.display = 'block';
+  buildTabs(); render();
+
+  // Fase 2: assim que PMG chegar (já estava rodando em paralelo)
+  const exportData = await promisePmg;
+  console.log(`⏱️ Fase 2 (PMG): ${Date.now()-t0}ms | export=${!!exportData}`);
+
+  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
 
   if (exportData) {
-    // Usa dados do export diretamente
     allCandidates.forEach(name => {
       const vendorRows = exportData[name];
       if (vendorRows && vendorRows.length > 0) {
@@ -819,46 +1042,20 @@ async function loadData(){
     allCandidates.forEach(name => { DATA[name] = []; });
   }
 
-  // Filtra abas com dados
-  // Remove fallbacks: Google retorna outra aba quando a pedida não existe
-  // Detecta pelo número exato de clientes — abas reais têm contagens únicas
-  const countMap = {};
-  allCandidates.forEach(v => {
-    const n = (DATA[v]||[]).length;
-    if (n > 0) {
-      if (!countMap[n]) countMap[n] = [];
-      countMap[n].push(v);
-    }
-  });
-
-  // Se múltiplas abas têm exatamente o mesmo nº de clientes, mantém só a que
-  // está na lista sh original (C.sh) — as outras são fallback
-  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
-  Object.values(countMap).forEach(vendors => {
-    if (vendors.length > 1) {
-      // Prefere o que está na lista original; se empate, mantém o último
-      const real = vendors.filter(v => shOriginal.includes(v));
-      const fake = vendors.filter(v => !shOriginal.includes(v));
-      // Se há um real e vários falsos, zera os falsos
-      fake.forEach(v => { DATA[v] = []; console.warn(`"${v}" zerado (fallback)`); });
-      // Se há múltiplos reais com mesmo nº, mantém todos (podem ter dados diferentes)
-    }
-  });
-
   const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
   C.sh = activeSheets.length > 0 ? activeSheets : shOriginal;
   console.log('✅ Abas ativas:', C.sh.join(', '));
 
-  btn.classList.remove('ld');
-  const now0 = new Date();
-  const pad0 = n => String(n).padStart(2,'0');
-  document.getElementById('upd').textContent = `Atualizado: ${pad0(now0.getDate())}/${pad0(now0.getMonth()+1)} ${pad0(now0.getHours())}:${pad0(now0.getMinutes())}`;
-  const totalRows = C.sh.reduce((a,v) => a + (DATA[v]||[]).length, 0);
-  if (totalRows === 0) showErr('⚠️ Nenhum dado carregado. Verifique o compartilhamento da planilha.');
-  document.getElementById('dbar').style.display = 'flex';
-  console.log(`⏱️ Pré-render: ${Date.now()-t0}ms`);
+  _lastV1MaxDate  = getV1MaxDate();
+  _lastPmgMaxDate = getPmgMaxDate();
+
   buildTabs(); render();
-  console.log(`⏱️ Render concluído: ${Date.now()-t0}ms`);
+
+  // Esconde banner ao finalizar
+  document.getElementById('updating-banner').style.display = 'none';
+  document.getElementById('updating-overlay').style.display = 'none';
+
+  console.log(`⏱️ Render completo: ${Date.now()-t0}ms`);
 }
 
 // ── PERIOD ────────────────────────────────────────────
@@ -1025,6 +1222,31 @@ function status(r){
 }
 
 // Keep most recent row per (vendor+client)
+// Retorna meta do vendedor: soma o maior valor de META FAT por GC único do último dia
+function metaUltimoSalv(rows) {
+  if (!rows || !rows.length) return 0;
+  const vendor = rows[0] && rows[0].vendor;
+  // Tenta META_OUTROS primeiro — fonte confiável centralizada
+  if (vendor && META_OUTROS) {
+    const nomeCompleto = Object.entries(VENDOR_MAP).find(([,v]) => v === vendor)?.[0];
+    const metaEntry = (nomeCompleto && META_OUTROS[nomeCompleto]) || META_OUTROS[vendor];
+    if (metaEntry && metaEntry.metaFat > 0) return metaEntry.metaFat;
+  }
+  // Fallback: soma o maior valor de meta por GC único no último dia
+  const maxDate = rows.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
+  if (!maxDate.getTime()) return 0;
+  const lastDay = maxDate.toISOString().slice(0,10);
+  const lastRows = rows.filter(r => r.date && r.date.toISOString().slice(0,10) === lastDay);
+  // Agrupa por GC (client) e soma o maior valor por GC — preserva duplicatas de GC
+  const byGC = {};
+  lastRows.forEach(r => {
+    const gc = r.client || '';
+    if (!gc) return;
+    byGC[gc] = (byGC[gc] || 0) + (r.meta || 0);
+  });
+  return Object.values(byGC).reduce((a,v) => a + v, 0);
+}
+
 function dedup(rows){
   const m=new Map();
   for(const r of rows){
@@ -1102,11 +1324,18 @@ function _render(){
   const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
   const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
   const vendAtivos = ACTIVE === 'all' ? getGroupVendors() : [ACTIVE];
+  const allChannelNomesV1 = CHANNELS.flatMap(ch => getChannelVendors(ch));
 
   const v1Period = VENDAS_V1.filter(r => {
     if (!r.date) return false;
     if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
-    if (ACTIVE === 'all' && !getGroupVendors().includes(r.vendor)) return false;
+    if (ACTIVE === 'all') {
+      if (CHANNELS.includes(GROUP)) {
+        if (!getChannelVendors(GROUP).includes(r.nomeVend)) return false;
+      } else if (GROUP === 'all') {
+        if (!C.sh.includes(r.vendor) && !allChannelNomesV1.includes(r.nomeVend)) return false;
+      } else if (!getGroupVendors().includes(r.vendor)) return false;
+    }
     if (PERIOD === 'all') return true;
     if (PERIOD === 'hoje') {
       const hoje = now2.getDate();
@@ -1190,16 +1419,17 @@ function _render(){
   const _maxDayInfo = getMaxDay(dd);
   const vs = {};
   getGroupVendors().forEach(v => {
-    const vdAll  = dedup(getRaw(v));
+    const vdRaw  = getRaw(v); // dados brutos sem dedup — necessário para meta correta
+    const vdAll  = dedup(vdRaw);
     const vd     = fltPeriod(vdAll);
     const vdDate = fltPeriodByDate(vdAll);
     // Faturamento do período via vendas_v1
     const vFat = v1Period.filter(r => r.vendor === v).reduce((a,r) => a + (r.fat||0), 0);
-    // Meta FAT e Meta POSIT — usa mês mais recente disponível (pode ser mês anterior se ainda não há dados do mês atual)
+    // Meta FAT — usa dados brutos para preservar GCs duplicados com metas diferentes
     const maxVDate = vdAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
     const bestMonth = maxVDate.getTime() > 0 ? new Date(maxVDate.getFullYear(), maxVDate.getMonth(), 1) : iniMes2;
+    const vMetaFat = metaUltimoSalv(vdRaw);
     const vRowsMeta = vdAll.filter(r => r.date && r.date >= bestMonth);
-    const vMetaFat = vRowsMeta.reduce((a,r) => a + (r.meta||0), 0);
     const vMetaPos = vRowsMeta.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
     // Positivado MTD via vendas_v1
     const vPositSet = new Set(
@@ -1231,7 +1461,14 @@ function _render(){
   const v1Filt = VENDAS_V1.filter(r => {
     if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
     if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
-    if (ACTIVE === 'all') return vendAtivos.includes(r.vendor);
+    if (ACTIVE === 'all') {
+      if (CHANNELS.includes(GROUP)) return getChannelVendors(GROUP).includes(r.nomeVend);
+      if (GROUP === 'hava') return getChannelVendors('hava').includes(r.nomeVend) || HAVA_PMG_VENDORS.includes(r.vendor);
+      if (GROUP === 'farmer') return getFarmerVendors().includes(r.vendor);
+      if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(r.vendor);
+      // GROUP === 'all': inclui TUDO do mês sem filtrar por canal
+      return true;
+    }
     return true;
   });
 
@@ -1242,36 +1479,125 @@ function _render(){
 
   console.log(`📊 MTD: fat=${totValMtd.toFixed(0)} posit=${sumPositMes} linhas=${v1Filt.length}`);
 
-  // POSIT. MTD e META POSIT.: calcula por vendedor e soma
-  // — META POSIT. = máximo por vendedor (mesmo valor em todas as linhas do vendedor)
-  // — POSIT. MÊS  = soma por vendedor (varia por dia, acumulado do mês)
-  // Meta FAT e Meta Posit ainda vêm das abas dos vendedores
+  // Meta FAT e Meta Posit: PMG vendors via abas + canais via META_OUTROS
   const vendorsAtivos = vendAtivos.filter(v => (DATA[v]||[]).length > 0);
   let totalMetaPos = 0;
   let totalMetaFat  = 0;
-  const iniMes3 = iniMes2;
-  vendorsAtivos.forEach(v => {
-    const vAll = dedup(getRaw(v));
-    const vMaxDate = vAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
-    const vBestMonth = vMaxDate.getTime() > 0 ? new Date(vMaxDate.getFullYear(), vMaxDate.getMonth(), 1) : iniMes2;
-    const vRowsMtd = vAll.filter(r => r.date && r.date >= vBestMonth);
-    const vMetaPos = vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
-    const vMetaFat = vRowsMtd.reduce((a,r) => a + (r.meta||0), 0);
-    totalMetaPos += vMetaPos;
-    totalMetaFat += vMetaFat;
-  });
+
+  if (CHANNELS.includes(GROUP)) {
+    // Canal específico selecionado
+    if (GROUP === 'rca') {
+      Object.entries(META_OUTROS).forEach(([nome, m]) => {
+        if (isRCA(nome)) { totalMetaFat += m.metaFat||0; totalMetaPos += m.metaPos||0; }
+      });
+    } else {
+      getChannelVendors(GROUP).forEach(nome => {
+        const m = META_OUTROS[nome] || {};
+        totalMetaFat += m.metaFat || 0;
+        totalMetaPos += m.metaPos || 0;
+      });
+    }
+    // Se HAVA: inclui também meta das abas PMG (SAMARA)
+    if (GROUP === 'hava') {
+      HAVA_PMG_VENDORS.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
+        totalMetaFat += metaUltimoSalv((DATA[v]||[]).map(r=>({...r,vendor:v})));
+      });
+    }
+  } else {
+    // GROUP = all, farmer, developer — soma PMG vendors
+    vendorsAtivos.forEach(v => {
+      const vRaw = getRaw(v);
+      totalMetaFat += metaUltimoSalv(vRaw);
+      const vAll = dedup(vRaw);
+      const vMaxDate = vAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
+      const vBestMonth = vMaxDate.getTime() > 0 ? new Date(vMaxDate.getFullYear(), vMaxDate.getMonth(), 1) : iniMes2;
+      const vRowsMtd = vAll.filter(r => r.date && r.date >= vBestMonth);
+      totalMetaPos += vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    });
+    // GROUP = all: também soma todos os canais do META_OUTROS
+    if (GROUP === 'all') {
+      ['closer','martins','ka','hava'].forEach(ch => {
+        getChannelVendors(ch).forEach(nome => {
+          const m = META_OUTROS[nome] || {};
+          totalMetaFat += m.metaFat || 0;
+          totalMetaPos += m.metaPos || 0;
+        });
+      });
+      // RCA
+      Object.entries(META_OUTROS).forEach(([nome, m]) => {
+        if (isRCA(nome)) { totalMetaFat += m.metaFat||0; totalMetaPos += m.metaPos||0; }
+      });
+    }
+  }
   const pctPos  = totalMetaPos > 0 ? Math.round((sumPositMes / totalMetaPos) * 100) : null;
   const ating   = totalMetaFat > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
+
+  // Meta Faturamento — respeita filtro GROUP
+  // Determina quais grupos/canais incluir baseado no GROUP ativo
+  const CANAIS_META = ['closer','martins','hava','ka'];
+  let metaFatCanais = 0;
+  let fatCanaisMtd  = 0;
+
+  const shouldIncludeCanal = (ch) => GROUP === 'all' || GROUP === ch;
+  const shouldIncludePmg   = (v)  => GROUP === 'all' || GROUP === 'farmer' || GROUP === 'developer' ||
+                                     (GROUP === 'farmer'    && getFarmerVendors().includes(v)) ||
+                                     (GROUP === 'developer' && DEVELOPER_VENDORS.includes(v));
+  const pmgExtraForGroup = () => {
+    if (GROUP === 'farmer')    return getFarmerVendors();
+    if (GROUP === 'developer') return DEVELOPER_VENDORS;
+    if (GROUP === 'hava')      return HAVA_PMG_VENDORS;
+    if (GROUP === 'all') return [...new Set([...getFarmerVendors(), ...DEVELOPER_VENDORS, ...HAVA_PMG_VENDORS])];
+    return []; // canal específico sem PMG
+  };
+
+  const pmgExtraUniq = pmgExtraForGroup()
+    .filter(v => (DATA[v]||[]).length > 0)
+    .filter(v => ACTIVE === 'all' || ACTIVE === v); // respeita vendedor ativo
+
+  // Metas canais — só se ACTIVE é 'all' (canais não têm vendedor individual)
+  if (ACTIVE === 'all') {
+    CANAIS_META.filter(shouldIncludeCanal).forEach(ch => {
+      getChannelVendors(ch).forEach(nome => {
+        metaFatCanais += (META_OUTROS[nome]||{}).metaFat || 0;
+      });
+    });
+    // RCA
+    if (GROUP === 'all' || GROUP === 'rca') {
+      Object.entries(META_OUTROS).forEach(([nome, m]) => {
+        if (isRCA(nome)) metaFatCanais += m.metaFat || 0;
+      });
+    }
+  }
+  // FARMER + DEVELOPER + SAMARA das abas PMG (filtrado por vendedor ativo)
+  pmgExtraUniq.forEach(v => {
+    const vRaw = (DATA[v]||[]).map(r=>({...r,vendor:v}));
+    metaFatCanais += metaUltimoSalv(vRaw);
+  });
+
+  // Faturamento MTD (sempre MTD, sem filtro de período)
+  const allCanalNomesFat = ACTIVE === 'all' ? [
+    ...CANAIS_META.filter(shouldIncludeCanal).flatMap(ch => getChannelVendors(ch)),
+    ...(GROUP === 'all' || GROUP === 'rca' ? Object.keys(META_OUTROS).filter(isRCA) : []),
+  ] : [];
+  fatCanaisMtd = VENDAS_V1.filter(r => {
+    if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
+    if (allCanalNomesFat.includes(r.nomeVend)) return true;
+    if (pmgExtraUniq.includes(r.vendor)) return true;
+    return false;
+  }).reduce((a,r) => a+(r.fat||0), 0);
+
+  const atingCanais = metaFatCanais > 0 ? Math.round((fatCanaisMtd / metaFatCanais) * 100) : null;
 
   // ── KPIs linha 1 — respeitam filtro de período
   const totValPeriod = v1Period.reduce((a,r) => a + (r.fat||0), 0);
 
   const kpisRow1 = [
-    {ico:'💰', lbl:'Faturamento',  sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)'},
-    {ico:'💼', lbl:'Carteira',     sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
-    {ico:'📞', lbl:'Contato',      sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)'},
-    {ico:'🛒', lbl:'Venda',        sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
-    {ico:'❌', lbl:'Não Venda',    sub:'Grupos Comerciais', val:cntNav,             kc:'var(--red)'},
+    {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', bellId:'kpi-bell-fat'},
+    {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanais), kc:'var(--blue)', ating: atingCanais},
+    {ico:'💼', lbl:'Carteira',         sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
+    {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)',  bellId:'kpi-bell-pmg'},
+    {ico:'🛒', lbl:'Venda',            sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
+    {ico:'❌', lbl:'Não Venda',        sub:'Grupos Comerciais', val:cntNav,             kc:'var(--red)'},
   ];
   // ── KPIs linha MTD — sempre acumulado do mês
   const kpisRow2 = [
@@ -1283,7 +1609,11 @@ function _render(){
     <div class="kpi" style="--kc:${k.kc}">
       <div class="kpi-bar"></div>
       <div class="kpi-ico">${k.ico}</div>
-      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
+        ${k.lbl}
+        ${k.bellId === 'kpi-bell-fat' ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="Faturamento atualizado — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 Faturamento</span>` : ''}
+        ${k.bellId === 'kpi-bell-pmg' ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="Novo salvamento no PMG — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 PMG</span>` : ''}
+      </div>
       <div class="kpi-val${k.lg?' lg':k.sm?' sm':''}">${k.val}</div>
       ${k.sub ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${k.sub}</div>` : ''}
       ${k.sub2 ? `<div style="font-size:13px;color:var(--text3);margin-top:3px;font-family:'Roboto Mono',monospace">${k.sub2}</div>` : ''}
@@ -1296,22 +1626,219 @@ function _render(){
         </div>` : ''}
     </div>`;
 
-  // Renderiza MTD cards no mtd-bar (acima do filtro de período)
+  // ── Renderiza MTD bar — 2 linhas: Fat MTD e Posit MTD por canal
   const mtdBar = document.getElementById('mtd-bar');
-  const mtdCards = document.getElementById('mtd-cards');
-  if (mtdBar && mtdCards) {
+  if (mtdBar) {
     mtdBar.style.display = 'block';
-    mtdCards.innerHTML = kpisRow2.map(kpiHtml).join('');
+
+    // Calcula fat+posit MTD para um conjunto de nomeVend ou vendors PMG (ou ambos)
+    const calcMtd = (pmgVendors, channelNomes) => {
+      const rows = VENDAS_V1.filter(r => {
+        if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
+        if (channelNomes && channelNomes.includes(r.nomeVend)) return true;
+        if (pmgVendors && pmgVendors.length && pmgVendors.includes(r.vendor)) return true;
+        return false;
+      });
+      const fat   = rows.reduce((a,r) => a+(r.fat||0), 0);
+      const posit = new Set(rows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
+      return { fat, posit };
+    };
+
+    // Metas por grupo
+    const getMeta = (pmgVendors, channelNomes, grpKey) => {
+      let mFat=0, mPos=0;
+      if (channelNomes !== null) {
+        // Para RCA: soma TODAS as entradas de META_OUTROS que começam com "RCA"
+        // (independente de aparecerem em VENDAS_V1 no período)
+        if (grpKey === 'rca') {
+          Object.entries(META_OUTROS).forEach(([nome, m]) => {
+            if (isRCA(nome)) { mFat+=m.metaFat||0; mPos+=m.metaPos||0; }
+          });
+        } else {
+          channelNomes.forEach(n => { const m=META_OUTROS[n]||{}; mFat+=m.metaFat||0; mPos+=m.metaPos||0; });
+        }
+      } else {
+        pmgVendors.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
+          const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
+          const vAll=dedup(vRaw);
+          mFat+=metaUltimoSalv(vRaw);
+          const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
+          const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
+          const vMtd=vAll.filter(r=>r.date&&r.date>=vBest);
+          mPos+=vMtd.reduce((mx,r)=>Math.max(mx,r.metaPos||0),0);
+        });
+      }
+      return { mFat, mPos };
+    };
+
+    const miniCard = (lbl, val, meta, type, grp, isAvacy, pmgHava) => {
+      const pct = meta>0 ? Math.round((val/meta)*100) : null;
+      const col = pct==null?'#888':pct>=100?'#1a8c4e':pct>=70?'#b87a00':'#cc1a1a';
+      const valStr = type==='fat' ? fBRL(val) : val.toString();
+      const metaStr = meta>0 ? (type==='fat'?fBRL(meta):meta.toString()) : '';
+      const isActive = GROUP === grp;
+      let bg, border, textC, labelC, metaC, pctC;
+      if (isAvacy) {
+        bg='linear-gradient(135deg,#1a3a8c,#0f1e4a)'; border='#3b5bdb';
+        textC='#fff'; labelC='rgba(255,255,255,.7)'; metaC='rgba(255,255,255,.55)';
+        pctC = pct==null?'rgba(255,255,255,.5)':pct>=100?'#4ade80':pct>=70?'#fbbf24':'#f87171';
+      } else if (isActive) {
+        bg='#e8eef9'; border='#1a3a8c';
+        textC='#1a3a8c'; labelC='#1a3a8c'; metaC='#666'; pctC=col;
+      } else {
+        bg='var(--white)'; border='var(--gray)';
+        textC='var(--text)'; labelC='var(--text3)'; metaC='var(--text3)'; pctC=col;
+      }
+      const barHtml = pct!=null ? `
+        <div style="margin-top:7px">
+          <div style="height:4px;background:${isAvacy?'rgba(255,255,255,.15)':'var(--gray)'};border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${Math.min(pct,100)}%;background:${isAvacy?(pct>=100?'#4ade80':pct>=70?'#fbbf24':'#f87171'):col};border-radius:3px;transition:width .8s"></div>
+          </div>
+          <div style="font-size:${isAvacy?'13':'11'}px;font-weight:800;color:${pctC};margin-top:4px;font-family:'Roboto Mono',monospace">${pct}% da meta</div>
+        </div>` : '';
+      if (isAvacy) {
+        bg='var(--white)'; border='var(--gray2)';
+        textC='var(--text)'; labelC='var(--text3)'; metaC='var(--text3)';
+        pctC = pct==null?'var(--text3)':pct>=100?'#1a8c4e':pct>=70?'#b87a00':'#cc1a1a';
+        const barCol = pct==null?'#888':pct>=100?'#1a8c4e':pct>=70?'#b87a00':'#cc1a1a';
+        const pmgHavaPct = pmgHava && pmgHava.meta > 0 ? Math.round((pmgHava.posit / pmgHava.meta) * 100) : null;
+        const pmgHavaPctC = pmgHavaPct==null?'var(--text3)':pmgHavaPct>=100?'#1a8c4e':pmgHavaPct>=70?'#b87a00':'#cc1a1a';
+        const pmgHavaBarCol = pmgHavaPct==null?'#888':pmgHavaPct>=100?'#1a8c4e':pmgHavaPct>=70?'#b87a00':'#cc1a1a';
+        const subLbl = `<span style="font-size:6.5px;font-weight:600;letter-spacing:.5px">(FARMER, DEVELOPER, CLOSER, HAVA)</span>`;
+        const rightBlock = pmgHava ? `
+          <div style="border-left:1.5px solid var(--gray2);padding-left:16px;display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px;line-height:1.4">AVACY<br>${subLbl}</div>
+            <div style="font-size:26px;font-weight:800;color:var(--text);font-family:'Montserrat',sans-serif;line-height:1.1">${pmgHava.posit}</div>
+            ${pmgHavaPct!=null?`
+              <div style="margin-top:15px">
+                <div style="height:4px;background:var(--gray);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${Math.min(pmgHavaPct,100)}%;background:${pmgHavaBarCol};border-radius:3px;transition:width .8s"></div>
+                </div>
+                <div style="font-size:13px;font-weight:800;color:${pmgHavaPctC};margin-top:6px;font-family:'Montserrat',sans-serif">${pmgHavaPct}% da meta</div>
+              </div>`:''
+            }
+          </div>` : '';
+        return `<div onclick="setGroup('${grp}')" style="width:364px;flex-shrink:0;background:${bg};border:2px solid ${border};border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};border-radius:12px;padding:10px 26px;cursor:pointer;transition:all .2s;display:flex;flex-direction:row;align-items:stretch;gap:16px;text-align:left;box-shadow:0 4px 16px rgba(26,58,140,.10)">
+          <div style="display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px">${lbl}</div>
+            <div style="font-size:26px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
+            ${(!pmgHava && metaStr)?`<div style="font-size:12px;color:${metaC};margin-top:6px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
+            ${(!pmgHava && pct!=null)?`
+              <div style="margin-top:15px">
+                <div style="height:4px;background:var(--gray);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${Math.min(pct,100)}%;background:${barCol};border-radius:3px;transition:width .8s"></div>
+                </div>
+                <div style="font-size:13px;font-weight:800;color:${pctC};margin-top:6px;font-family:'Montserrat',sans-serif">${pct}% da meta</div>
+              </div>`:''
+            }
+          </div>
+          ${rightBlock}
+        </div>`;
+      }
+      return `<div onclick="setGroup('${grp}')" style="width:240px;flex-shrink:0;background:${bg};border:2px solid ${border};border-radius:10px;border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};padding:8px 14px;cursor:pointer;transition:all .2s;text-align:left;box-shadow:${isActive?'0 2px 8px rgba(26,58,140,.15)':'none'}">
+        <div style="font-size:11px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">${lbl}</div>
+        <div style="font-size:20px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
+        ${metaStr?`<div style="font-size:11px;color:${metaC};margin-top:2px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
+        ${pct!=null?`
+          <div style="margin-top:5px">
+            <div style="height:3px;background:var(--gray);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px;transition:width .8s"></div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:${pctC};margin-top:3px;font-family:'Montserrat',sans-serif">${pct}% da meta</div>
+          </div>`:''
+        }
+      </div>`;
+    };
+    const calcAvacy = (type) => {
+      const rows = VENDAS_V1.filter(r => {
+        if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
+        return C.sh.includes(r.vendor) || allChannelNomesV1.includes(r.nomeVend);
+      });
+      if (type==='fat') return rows.reduce((a,r)=>a+(r.fat||0),0);
+      return new Set(rows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
+    };
+    const calcAvacyMeta = (type) => {
+      let m=0;
+      getFarmerVendors().concat(DEVELOPER_VENDORS).concat(HAVA_PMG_VENDORS).filter(v=>(DATA[v]||[]).length>0).forEach(v=>{
+        const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
+        const vAll=dedup(vRaw);
+        if(type==='fat') m+=metaUltimoSalv(vRaw);
+        else {
+          const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
+          const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
+          m+=vAll.filter(r=>r.date&&r.date>=vBest).reduce((mx,r)=>Math.max(mx,r.metaPos||0),0);
+        }
+      });
+      // Canais não-RCA via allChannelNomesV1 (closer, martins, ka, hava)
+      allChannelNomesV1.filter(n => !isRCA(n)).forEach(n=>{
+        const mt=META_OUTROS[n]||{};
+        if(type==='fat') m+=mt.metaFat||0; else m+=mt.metaPos||0;
+      });
+      // RCA: soma TODAS as entradas de META_OUTROS que começam com "RCA"
+      Object.entries(META_OUTROS).forEach(([nome, mt]) => {
+        if (isRCA(nome)) { if(type==='fat') m+=mt.metaFat||0; else m+=mt.metaPos||0; }
+      });
+      return m;
+    };
+
+    const subGroups = [
+      { lbl:'FARMER',    pmg: getFarmerVendors(),    ch: null,                        grp:'farmer'    },
+      { lbl:'DEVELOPER', pmg: DEVELOPER_VENDORS,     ch: null,                        grp:'developer' },
+      { lbl:'CLOSER',    pmg: null,                  ch: getChannelVendors('closer'), grp:'closer'    },
+      { lbl:'MARTINS',   pmg: null,                  ch: getChannelVendors('martins'),grp:'martins'   },
+      { lbl:'RCA',       pmg: null,                  ch: getChannelVendors('rca'),    grp:'rca'       },
+      { lbl:'KA',        pmg: null,                  ch: getChannelVendors('ka'),     grp:'ka'        },
+      { lbl:'HAVA',      pmg: HAVA_PMG_VENDORS,          ch: getChannelVendors('hava'),   grp:'hava'      },
+    ];
+
+    const fatRow = document.getElementById('mtd-fat-row');
+    const posRow = document.getElementById('mtd-pos-row');
+    if (fatRow && posRow) {
+      const avacyFat  = calcAvacy('fat');
+      const avacyPos  = calcAvacy('pos');
+      const avacyMFat = calcAvacyMeta('fat');
+      const avacyMPos = calcAvacyMeta('pos');
+      // Linha 1: FARMER, DEVELOPER, CLOSER | Linha 2: MARTINS, RCA, KA, HAVA
+      const lvl1 = subGroups.filter(g => ['farmer','developer','closer'].includes(g.grp));
+      const lvl2 = subGroups.filter(g => ['martins','rca','ka','hava'].includes(g.grp));
+
+      // Positivação e meta FARMER+DEVELOPER+CLOSER+HAVA (para bloco direito do card AVACY de posit)
+      const pmgHavaGroups = subGroups.filter(g => ['farmer','developer','closer','hava'].includes(g.grp));
+      const pmgHavaPos  = pmgHavaGroups.reduce((a,g) => a + calcMtd(g.pmg||[],g.ch).posit, 0);
+      const pmgHavaMPos = pmgHavaGroups.reduce((a,g) => a + getMeta(g.pmg||[],g.ch,g.grp).mPos, 0);
+
+      const buildRow = (type, avacyVal, avacyMeta) => {
+        const avacyCard = miniCard('AVACY', avacyVal, avacyMeta, type, 'all', true, type==='pos' ? { posit: pmgHavaPos, meta: pmgHavaMPos } : null);
+        const row1Cards = lvl1.map(g => {
+          const {fat,posit} = calcMtd(g.pmg||[],g.ch);
+          const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
+          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false);
+        }).join('');
+        const row2Cards = lvl2.map(g => {
+          const {fat,posit} = calcMtd(g.pmg||[],g.ch);
+          const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
+          return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false);
+        }).join('');
+        return `${avacyCard}
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+            <div style="display:flex;gap:8px;justify-content:center">${row1Cards}</div>
+            <div style="display:flex;gap:8px;justify-content:center">${row2Cards}</div>
+          </div>`;
+      };
+
+      fatRow.innerHTML = buildRow('fat', avacyFat, avacyMFat);
+      posRow.innerHTML = buildRow('pos', avacyPos, avacyMPos);
+    }
   }
 
   mc.innerHTML += `
-    <div class="kpi-g" style="grid-template-columns:repeat(5,1fr);margin-bottom:22px">
+    <div class="kpi-g" style="grid-template-columns:repeat(6,1fr);margin-bottom:22px">
       ${kpisRow1.map(kpiHtml).join('')}
     </div>`;
 
   // ── GRÁFICO + FUNIL lado a lado
   mc.innerHTML+=`
-  <div style="display:grid;grid-template-columns:1fr 260px 260px;gap:18px;margin-bottom:22px">
+  <div style="display:grid;grid-template-columns:minmax(0,1.4fr) 220px 220px minmax(0,1fr);gap:18px;margin-bottom:22px">
     <div class="ch-card">
       <div class="stitle" style="--al:var(--blue)">Evolução Diária — Contatos e Positivados</div>
       <div class="ch-wrap" style="height:280px"><canvas id="cevo"></canvas></div>
@@ -1324,40 +1851,85 @@ function _render(){
       <div class="stitle" style="--al:#cc1a1a">Motivos Não Venda</div>
       <div id="motivos-wrap" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;padding-top:8px"></div>
     </div>
+    <div class="ch-card" style="display:flex;flex-direction:column">
+      <div class="stitle" style="--al:#1a8c4e">Faturamento por Canal</div>
+      <div style="flex:1;position:relative;min-height:200px"><canvas id="cfatcanal"></canvas></div>
+    </div>
   </div>`;
 
-  // Vendor breakdown
-  if(ACTIVE==='all'){
+  // Vendor breakdown (PMG) — sempre mostra todos, com transparência para não selecionados
+  if(!CHANNELS.includes(GROUP)){
     const MINI_ORDER = [
       { key:'em_carteira', lbl:'Carteira',   col:'#b87a00' },
       { key:'em_contato',  lbl:'Contato',    col:'#1a3a8c' },
       { key:'positivado',  lbl:'Venda',      col:'#1a8c4e' },
       { key:'nao_venda',   lbl:'Não Venda',  col:'#cc1a1a' },
     ];
-    const sortedV = [...C.sh].sort((a,b)=>a.localeCompare(b));
-    mc.innerHTML+=`<div class="stitle" style="--al:#a855f7;margin-bottom:14px">Performance por Vendedor</div>
-    <div class="vnd-g">${sortedV.map(v=>{
-      const s=vs[v]||{},ini=v.slice(0,2).toUpperCase();
-      const atFatStr = s.atFat!=null
-        ? `<span style="color:${s.atFat>=100?'#1a8c4e':s.atFat>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atFat}%</span> fat`
-        : 'sem meta fat';
-      const atPosStr = s.atPos!=null
-        ? `<span style="color:${s.atPos>=100?'#1a8c4e':s.atPos>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atPos}%</span> posit`
-        : '';
-      return `<div class="vnd" onclick="swV('${v}')">
-        <div class="vnd-h">
-          <div class="vnd-av">${ini}</div>
-          <div>
-            <div class="vnd-nm">${v}</div>
-            <div class="vnd-sb">${fBRL(s.fat||0)}</div>
-            <div class="vnd-sb" style="margin-top:2px">${atFatStr}${atPosStr ? ' · '+atPosStr : ''}</div>
+    const sortedV = [...getGroupVendors()].filter(v=>(DATA[v]||[]).length>0).sort((a,b)=>a.localeCompare(b));
+    if (sortedV.length > 0) {
+      mc.innerHTML+=`<div class="stitle" style="--al:#a855f7;margin-bottom:14px">Performance por Vendedor</div>
+      <div class="vnd-g">${sortedV.map(v=>{
+        const s=vs[v]||{},ini=v.slice(0,2).toUpperCase();
+        const isHighlighted = !VENDOR_HIGHLIGHT || VENDOR_HIGHLIGHT === v;
+        const dimStyle = !isHighlighted ? 'opacity:0.28;filter:grayscale(50%);transform:scale(0.97);' : '';
+        const borderCol = VENDOR_HIGHLIGHT===v ? 'var(--red)' : 'var(--blue)';
+        const atFatStr = s.atFat!=null
+          ? `<span style="color:${s.atFat>=100?'#1a8c4e':s.atFat>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atFat}%</span> fat`
+          : 'sem meta fat';
+        const atPosStr = s.atPos!=null
+          ? `<span style="color:${s.atPos>=100?'#1a8c4e':s.atPos>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atPos}%</span> posit`
+          : '';
+        // Último salvamento — usa aba CONSOLIDADO (fonte confiável, formato garantido DD/MM/YYYY HH:MM)
+        const lastSaveStr = CONSOLIDADO_DATAS[v] || '—';
+
+        return `<div class="vnd" data-vendor="${v}" onclick="swV('${v}')" style="transition:all .25s;border-left:4px solid ${borderCol};${dimStyle}">
+          <div class="vnd-h">
+            <div class="vnd-av">${ini}</div>
+            <div>
+              <div class="vnd-nm">${v}</div>
+              <div class="vnd-sb">${fBRL(s.fat||0)}</div>
+              <div class="vnd-sb" style="margin-top:2px">${atFatStr}${atPosStr ? ' · '+atPosStr : ''}</div>
+            </div>
           </div>
-        </div>
-        <div class="mini">${MINI_ORDER.map(st=>`<div class="mini-s">
-          <div class="mini-v" style="color:${st.col}">${s[st.key]||0}</div>
-          <div class="mini-l">${st.lbl}</div>
-        </div>`).join('')}</div>
-      </div>`;}).join('')}</div>`;
+          <div class="mini">${MINI_ORDER.map(st=>`<div class="mini-s">
+            <div class="mini-v" style="color:${st.col}">${s[st.key]||0}</div>
+            <div class="mini-l">${st.lbl}</div>
+          </div>`).join('')}</div>
+          <div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--gray);display:flex;align-items:center;gap:5px">
+            <span style="font-size:9px;color:var(--text3)">🕐</span>
+            <span style="font-size:9px;color:var(--text3);font-family:'Roboto Mono',monospace;letter-spacing:.2px">Últ. salvamento: <b style="color:var(--text2)">${lastSaveStr}</b></span>
+          </div>
+        </div>`;}).join('')}</div>`;
+    }
+  }
+
+  // Canal breakdown (vendas_v1 + META_OUTROS)
+  if(CHANNELS.includes(GROUP)){
+    const chVendors = getChannelVendors(GROUP);
+    if (chVendors.length > 0) {
+      mc.innerHTML+=`<div class="stitle" style="--al:#7c3aed;margin-bottom:14px">Performance — ${GROUP.toUpperCase()}</div>
+      <div class="vnd-g">${chVendors.map(nome=>{
+        const vRows  = v1Period.filter(r => r.nomeVend === nome);
+        const fat    = vRows.reduce((a,r) => a + (r.fat||0), 0);
+        const posit  = new Set(vRows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
+        const meta   = META_OUTROS[nome] || {};
+        const atFat  = meta.metaFat > 0 ? Math.round((fat   / meta.metaFat) * 100) : null;
+        const atPos  = meta.metaPos > 0 ? Math.round((posit / meta.metaPos) * 100) : null;
+        const ini    = nome.slice(0,2).toUpperCase();
+        const atFatStr = atFat!=null ? `<span style="color:${atFat>=100?'#1a8c4e':atFat>=70?'#b87a00':'#cc1a1a'};font-weight:700">${atFat}%</span> fat` : '';
+        const atPosStr = atPos!=null ? `<span style="color:${atPos>=100?'#1a8c4e':atPos>=70?'#b87a00':'#cc1a1a'};font-weight:700">${atPos}%</span> posit` : '';
+        return `<div class="vnd">
+          <div class="vnd-h">
+            <div class="vnd-av" style="background:#7c3aed">${ini}</div>
+            <div>
+              <div class="vnd-nm" style="font-size:12px">${nome}</div>
+              <div class="vnd-sb">${fBRL(fat)}</div>
+              <div class="vnd-sb" style="margin-top:2px">${[atFatStr,atPosStr].filter(Boolean).join(' · ')||'sem meta'}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}</div>`;
+    }
   }
 
   // Table — dedup global por cliente, sempre usando o registro mais recente
@@ -1423,11 +1995,143 @@ function _render(){
     </div>
   </div>`;
 
+  // ── Fat por canal para o gráfico de barras
+  // fatCanais usa VENDAS_V1 do mês inteiro filtrado apenas por período (não por GROUP/canal)
+  // para evitar contaminação quando um canal específico está selecionado
+  const v1ForCanais = VENDAS_V1.filter(r => {
+    if (!r.date) return false;
+    if (PERIOD === 'all') return true;
+    if (PERIOD === 'hoje') {
+      const hoje = now2.toISOString().slice(0,10);
+      return r.date.toISOString().slice(0,10) === hoje;
+    }
+    if (PERIOD === 'custom') {
+      if (D_FROM && r.date < D_FROM) return false;
+      if (D_TO   && r.date > D_TO)   return false;
+      return true;
+    }
+    if (PERIOD === '1') {
+      const ontem = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()-1);
+      return r.date >= ontem && r.date < new Date(now2.getFullYear(), now2.getMonth(), now2.getDate());
+    }
+    if (!isNaN(parseInt(PERIOD))) {
+      const cut = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - parseInt(PERIOD) + 1);
+      return r.date >= cut;
+    }
+    return true;
+  });
+  const allSubGroups = [
+    { lbl:'FARMER',    pmg: getFarmerVendors(),   ch: null },
+    { lbl:'DEVELOPER', pmg: DEVELOPER_VENDORS,    ch: null },
+    { lbl:'CLOSER',    pmg: null, ch: getChannelVendors('closer')  },
+    { lbl:'MARTINS',   pmg: null, ch: getChannelVendors('martins') },
+    { lbl:'RCA',       pmg: null, ch: getChannelVendors('rca')     },
+    { lbl:'KA',        pmg: null, ch: getChannelVendors('ka')      },
+    { lbl:'HAVA',      pmg: HAVA_PMG_VENDORS, ch: getChannelVendors('hava')    },
+  ];
+  const fatCanais = allSubGroups.map(g => {
+    const rows = v1ForCanais.filter(r => {
+      if (g.ch) return g.ch.includes(r.nomeVend);
+      return (g.pmg||[]).includes(r.vendor);
+    });
+    return { lbl: g.lbl, fat: rows.reduce((a,r)=>a+(r.fat||0),0) };
+  }).filter(g => g.fat > 0).sort((a,b) => b.fat - a.fat);
+
   requestAnimationFrame(()=>{
     buildEvo(dKeys,byD);
     buildFunil(cntCar, cntCon, cntVen, cntNav, total);
-    buildMotivos(rowsByDate);  // Não Venda filtra por DATA ENVIO
+    buildMotivos(rowsByDate);
+    buildFatCanais(fatCanais);
     drawTbl(rawForTable, false, v1PeriodMap);
+    updateAlertBells();
+  });
+}
+
+// ── FAT POR CANAL — barras horizontais ──────────────────
+let CH_CANAL = null;
+function buildFatCanais(fatCanais) {
+  const ctx = document.getElementById('cfatcanal'); if (!ctx) return;
+  if (CH_CANAL) { CH_CANAL.destroy(); CH_CANAL = null; }
+  if (!fatCanais.length) {
+    ctx.style.display = 'none';
+    ctx.parentElement.innerHTML += `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:12px;font-weight:600">Sem dados no período</div>`;
+    return;
+  }
+
+  const colors = {
+    'FARMER':   '#1a3a8c',
+    'DEVELOPER':'#2452b8',
+    'CLOSER':   '#7c3aed',
+    'MARTINS':  '#1a8c4e',
+    'RCA':      '#b87a00',
+    'KA':       '#cc1a1a',
+    'HAVA':     '#0891b2',
+  };
+
+  const maxVal = fatCanais[0].fat;
+  const labels = fatCanais.map(g => g.lbl);
+  const values = fatCanais.map(g => g.fat);
+  const bkgs   = fatCanais.map(g => colors[g.lbl] || '#1a3a8c');
+
+  CH_CANAL = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bkgs.map(c => c + 'cc'),
+        borderColor: bkgs,
+        borderWidth: 2,
+        borderRadius: 6,
+        barThickness: 22,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { right: 90 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(ctx.raw)
+          }
+        }
+      },
+      scales: {
+        x: {
+          display: false,
+          grid: { display: false },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { family: "'Montserrat', sans-serif", size: 11, weight: '700' }, color: '#0f1f4a' }
+        }
+      }
+    },
+    plugins: [{
+      id: 'valueLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx: c, data, scales: { x, y } } = chart;
+        c.save();
+        c.font = "700 11px 'Roboto Mono', monospace";
+        c.fillStyle = '#0f1f4a';
+        c.textBaseline = 'middle';
+        c.textAlign = 'left';
+        data.datasets[0].data.forEach((val, i) => {
+          const xPos = x.getPixelForValue(val) + 8;
+          const yPos = y.getPixelForValue(i);
+          const fmt = val >= 1e6
+            ? 'R$' + (val/1e6).toFixed(1) + 'M'
+            : val >= 1e3
+              ? 'R$' + (val/1e3).toFixed(0) + 'K'
+              : new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(val);
+          c.fillText(fmt, xPos, yPos);
+        });
+        c.restore();
+      }
+    }]
   });
 }
 
@@ -1516,18 +2220,14 @@ function buildFunil(cntCar, cntCon, cntVen, cntNav, total){
   if (!el) return;
 
   const stages = [
-    { lbl:'Carteira',  val:cntCar, col:'#b87a00', ico:'💼' },
-    { lbl:'Contato',   val:cntCon, col:'#1a3a8c', ico:'📞' },
-    { lbl:'Venda',     val:cntVen, col:'#1a8c4e', ico:'🛒' },
-    { lbl:'Não Venda', val:cntNav, col:'#cc1a1a', ico:'❌' },
+    { lbl:'Carteira',  val:cntCar, col:'#b87a00', ico:'💼', pctVal: 100 },
+    { lbl:'Contato',   val:cntCon, col:'#1a3a8c', ico:'📞', pctVal: cntCar > 0 ? Math.round((cntCon / cntCar) * 100) : 0 },
+    { lbl:'Venda',     val:cntVen, col:'#1a8c4e', ico:'🛒', pctVal: cntCar > 0 ? Math.round((cntVen / cntCar) * 100) : 0 },
+    { lbl:'Não Venda', val:cntNav, col:'#cc1a1a', ico:'❌', pctVal: cntCar > 0 ? Math.round((cntNav / cntCar) * 100) : 0 },
   ];
 
-  const max = Math.max(...stages.map(s=>s.val), 1);
-
   el.innerHTML = stages.map((s, i) => {
-    const pct  = total > 0 ? ((s.val / total) * 100).toFixed(0) : 0;
-    const barW = ((s.val / max) * 100).toFixed(0);
-    // Funil: cada estágio é um pouco mais estreito
+    const barW = Math.min(s.pctVal, 100);
     const marginPx = i * 10;
     return `<div style="margin:0 ${marginPx}px;transition:margin .4s">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -1537,7 +2237,7 @@ function buildFunil(cntCar, cntCon, cntVen, cntNav, total){
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-family:'Roboto Mono',monospace;font-size:18px;font-weight:700;color:var(--text)">${s.val}</span>
-          <span style="font-family:'Roboto Mono',monospace;font-size:10px;color:var(--text3)">${pct}%</span>
+          <span style="font-family:'Roboto Mono',monospace;font-size:10px;color:var(--text3)">${s.pctVal}%</span>
         </div>
       </div>
       <div style="height:8px;background:var(--gray);border-radius:6px;overflow:hidden">
@@ -1726,19 +2426,47 @@ function searchClient(){
 }
 
 // ── HELPERS ──────────────────────────────────────────
-function swV(v){ACTIVE=v;document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===v));render();}
-function setGroup(g){
-  GROUP = GROUP === g ? 'all' : g;
+function swV(v){
+  // Toggle: se já está ativo, volta para 'all'
+  const next = ACTIVE === v ? 'all' : v;
+  ACTIVE = next;
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active',t.textContent===next));
+  // Destaque visual nos vendor cards
+  document.querySelectorAll('.vnd[data-vendor]').forEach(card => {
+    const isSelected = next === 'all' || card.dataset.vendor === next;
+    card.style.opacity = isSelected ? '1' : '0.35';
+    card.style.transform = isSelected ? '' : 'scale(0.97)';
+    card.style.filter = isSelected ? '' : 'grayscale(40%)';
+  });
+  render();
+}
+function setGroupChip(g){
+  GROUP = g;
   ACTIVE = 'all';
-  // Visual dos botões de grupo
-  const isF = GROUP === 'farmer', isD = GROUP === 'developer', isA = GROUP === 'all';
-  document.getElementById('btn-farmer').style.borderBottomColor    = isF ? '#b87a00' : 'transparent';
-  document.getElementById('btn-farmer').style.color                = isF ? '#b87a00' : '#b87a00';
-  document.getElementById('btn-farmer').classList.toggle('active', isF);
-  document.getElementById('btn-developer').style.borderBottomColor = isD ? '#1a3a8c' : 'transparent';
-  document.getElementById('btn-developer').classList.toggle('active', isD);
-  document.getElementById('tab-all').classList.toggle('active', isA);
+  VENDOR_HIGHLIGHT = null;
+  ['all','farmer','developer','closer','martins','rca','ka','hava'].forEach(id => {
+    const el = document.getElementById('gchip-' + id);
+    if (el) el.classList.toggle('active', id === g);
+  });
   buildTabs(); render();
+}
+function setGroup(g){
+  GROUP = g;
+  ACTIVE = 'all';
+  VENDOR_HIGHLIGHT = null;
+  ['all','farmer','developer','closer','martins','rca','ka','hava'].forEach(id => {
+    const el = document.getElementById('gchip-' + id);
+    if (el) el.classList.toggle('active', id === g);
+  });
+  buildTabs(); render();
+}
+function swV(v){
+  // Toggle: clica de novo no mesmo → deseleciona
+  const next = VENDOR_HIGHLIGHT === v ? null : v;
+  VENDOR_HIGHLIGHT = next;
+  ACTIVE = next || 'all'; // filtra dados do dash pelo vendedor selecionado
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.toggle('active', t.textContent===(next||'all')));
+  render(); // render já usa VENDOR_HIGHLIGHT para aplicar transparência inline nos cards
 }
 function fBRL(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(v);}
 function setLoad(){document.getElementById('mc').innerHTML=`<div class="st-box"><div class="spin"></div><p>Carregando dados da planilha…</p></div>`;}
