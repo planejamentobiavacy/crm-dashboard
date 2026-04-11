@@ -422,11 +422,19 @@ async function loadMetaOutros() {
 }
 
 let D_FROM = null, D_TO = null, CH = null;
-let _lastV1MaxDate = null;   // última data máxima da vendas_v1
-let _lastPmgMaxDate = null;  // última DATA ENVIO máxima das abas PMG
+let _lastV1MaxDate  = null;   // última data máxima da vendas_v1 (DATA_FAT)
+let _lastV1ExecDate = null;   // última DT_EXECUCAO da vendas_v1
+let _lastPmgMaxDate = null;   // última DATA ENVIO máxima das abas PMG
 
 function getV1MaxDate() {
   return VENDAS_V1.reduce((max, r) => r.date && r.date > max ? r.date : max, new Date(0));
+}
+
+function getV1MaxExecDate() {
+  return VENDAS_V1.reduce((max, r) => {
+    const d = r.execStr ? pDate(r.execStr) : null;
+    return d && d > max ? d : max;
+  }, new Date(0));
 }
 
 function getPmgMaxDate() {
@@ -450,6 +458,7 @@ function showBell(label) {
 
 function clearBell() {
   _lastV1MaxDate  = getV1MaxDate();
+  _lastV1ExecDate = getV1MaxExecDate();
   _lastPmgMaxDate = getPmgMaxDate();
   _alertFat = false;
   _alertPmg = false;
@@ -475,9 +484,18 @@ async function checkUpdates() {
     if (r1.ok) {
       const d1 = await r1.json();
       if (d1?.rows?.length) {
-        let newMax = new Date(0);
-        d1.rows.forEach(row => { const d = pDate(row['DATA_FAT']||''); if (d && d > newMax) newMax = d; });
-        if (_lastV1MaxDate && newMax > _lastV1MaxDate) { showBell('novo fat'); return; }
+        // Compara DT_EXECUCAO (mais confiável — muda quando a base é reprocessada)
+        let newExec = new Date(0);
+        let newFat  = new Date(0);
+        d1.rows.forEach(row => {
+          const dExec = pDate(row['DT_EXECUCAO'] || row['DT_EXEC'] || '');
+          if (dExec && dExec > newExec) newExec = dExec;
+          const dFat = pDate(row['DATA_FAT'] || '');
+          if (dFat && dFat > newFat) newFat = dFat;
+        });
+        const execChanged = _lastV1ExecDate && newExec.getTime() > 0 && newExec > _lastV1ExecDate;
+        const fatChanged  = _lastV1MaxDate  && newFat.getTime()  > 0 && newFat  > _lastV1MaxDate;
+        if (execChanged || fatChanged) { showBell('novo fat'); return; }
       }
     }
   } catch(e) {}
@@ -687,6 +705,7 @@ async function loadVendasV1() {
 
     console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas`);
     _lastV1MaxDate  = getV1MaxDate();
+    _lastV1ExecDate = getV1MaxExecDate();
     _lastPmgMaxDate = getPmgMaxDate();
     // Atualiza label "Venda atualizada até" — usa DT_EXECUCAO (data/hora da última execução)
     const execMax = VENDAS_V1.reduce((max, r) => {
@@ -949,6 +968,13 @@ function parseGviz(resp, vendor) {
 
 
 // ── pDate — parser de data com hora para dedup preciso ─
+// Retorna YYYY-MM-DD usando hora LOCAL (evita problema UTC-3 com toISOString)
+function localDK(d) {
+  if (!d) return '';
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 function pDate(s){
   if(!s) return null;
   s = String(s).trim();
@@ -1091,12 +1117,12 @@ function parseDays(str) {
 function getMaxDay(rows) {
   // Pega a data mais recente
   const maxDate = rows.reduce((max, r) => {
-    const d = r.date ? r.date.toISOString().slice(0,10) : '';
+    const d = r.date ? localDK(r.date) : '';
     return d > max ? d : max;
   }, '');
   if (!maxDate) return null;
   // Entre os registros com data mais recente, pega o maior dia de DIAS VENDA/CONTATO
-  const recentRows = rows.filter(r => r.date && r.date.toISOString().slice(0,10) === maxDate);
+  const recentRows = rows.filter(r => r.date && localDK(r.date) === maxDate);
   let maxDay = 0;
   recentRows.forEach(r => {
     const dvDays = parseDays(r.diasVenda);
@@ -1110,8 +1136,8 @@ function getMaxDay(rows) {
 function fltPeriodByDate(rows){
   if(PERIOD==='all') return rows;
   if(PERIOD==='hoje'){
-    const hoje = new Date().toISOString().slice(0,10);
-    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === hoje);
+    const hoje = localDK(new Date());
+    return rows.filter(r => r.date && localDK(r.date) === hoje);
   }
   if(PERIOD==='custom'){
     return rows.filter(r=>{
@@ -1128,16 +1154,16 @@ function fltPeriodByDate(rows){
   }
   // Últ. Dia e N dias — usa DATA ENVIO mais recente
   const maxDate = rows.reduce((max, r) => {
-    const d = r.date ? r.date.toISOString().slice(0,10) : '';
+    const d = r.date ? localDK(r.date) : '';
     return d > max ? d : max;
   }, '');
   if(PERIOD==='1'){
     const ontem = new Date();
     ontem.setDate(ontem.getDate() - 1);
-    const ontemStr = ontem.toISOString().slice(0,10);
+    const ontemStr = localDK(ontem);
     // Usa ontem se tiver dados, senão usa data mais recente
-    const target = rows.some(r => r.date && r.date.toISOString().slice(0,10) === ontemStr) ? ontemStr : maxDate;
-    return rows.filter(r => r.date && r.date.toISOString().slice(0,10) === target);
+    const target = rows.some(r => r.date && localDK(r.date) === ontemStr) ? ontemStr : maxDate;
+    return rows.filter(r => r.date && localDK(r.date) === target);
   }
   const cut = new Date(Date.now() - parseInt(PERIOD)*864e5);
   return rows.filter(r => r.date && r.date >= cut);
@@ -1246,19 +1272,26 @@ function metaUltimoSalv(rows) {
     const metaEntry = (nomeCompleto && META_OUTROS[nomeCompleto]) || META_OUTROS[vendor];
     if (metaEntry && metaEntry.metaFat > 0) return metaEntry.metaFat;
   }
-  // Fallback: soma o maior valor de meta por GC único no último dia
+  // Fallback: pega o valor de meta mais recente por GC, somando duplicatas do mesmo GC na mesma data
+  // Ordena por data decrescente, pega a data mais recente que tem meta, soma por GC nessa data
   const maxDate = rows.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
   if (!maxDate.getTime()) return 0;
-  const lastDay = maxDate.toISOString().slice(0,10);
-  const lastRows = rows.filter(r => r.date && r.date.toISOString().slice(0,10) === lastDay);
-  // Agrupa por GC (client) e soma o maior valor por GC — preserva duplicatas de GC
-  const byGC = {};
-  lastRows.forEach(r => {
+  // Agrupa por GC usando o valor da linha mais recente de cada GC, somando duplicatas
+  const sorted = [...rows].sort((a,b) => (b.date?.getTime()||0) - (a.date?.getTime()||0));
+  const byGC = {}; // gc → { date, total }
+  sorted.forEach(r => {
     const gc = r.client || '';
     if (!gc) return;
-    byGC[gc] = (byGC[gc] || 0) + (r.meta || 0);
+    const rDay = r.date ? localDK(r.date) : '';
+    if (!byGC[gc]) {
+      byGC[gc] = { day: rDay, total: r.meta || 0 };
+    } else if (rDay === byGC[gc].day) {
+      // Mesmo dia → soma (duplicatas intencionais como GC 168 do BRUNO)
+      byGC[gc].total += r.meta || 0;
+    }
+    // Dia anterior → ignora (byGC[gc].day já é mais recente)
   });
-  return Object.values(byGC).reduce((a,v) => a + v, 0);
+  return Object.values(byGC).reduce((a,v) => a + v.total, 0);
 }
 
 function dedup(rows){
@@ -1385,14 +1418,14 @@ function _render(){
 
   const byD = {};
 
-  // Extrai o mês/ano da data mais recente dos dados para montar as datas completas
-  const refDate = evoRaw.reduce((max, r) => r.date && r.date > max ? r.date : max, new Date(0));
-  const refYear  = refDate.getFullYear();
-  const refMonth = refDate.getMonth(); // 0-based
+  // Usa o mês atual para montar as datas dos dias (DIAS VENDA/CONTATO são dias do mês corrente)
+  const now = new Date();
+  const refYear  = now.getFullYear();
+  const refMonth = now.getMonth(); // 0-based, mês atual
 
   const getDayKey = (day) => {
     const d = new Date(refYear, refMonth, parseInt(day));
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+    return isNaN(d.getTime()) ? null : localDK(d);
   };
 
   evoRaw.forEach(r => {
@@ -1421,6 +1454,21 @@ function _render(){
     }
   });
 
+  // Helper: formata data como YYYY-MM-DD usando hora LOCAL (evita problema UTC-3)
+  // Complementa positivados com vendas_v1 (fonte confiável de faturamento real por data)
+  const hoje = localDK(new Date());
+  VENDAS_V1.filter(r => r.date && r.fat > 0).forEach(r => {
+    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return;
+    if (ACTIVE === 'all') {
+      if (CHANNELS.includes(GROUP)) { if (!getChannelVendors(GROUP).includes(r.nomeVend)) return; }
+      else if (GROUP === 'farmer')    { if (!getFarmerVendors().includes(r.vendor)) return; }
+      else if (GROUP === 'developer') { if (!DEVELOPER_VENDORS.includes(r.vendor)) return; }
+    }
+    const dayKey = localDK(r.date);
+    if (!byD[dayKey]) byD[dayKey] = { contato: new Set(), positivado: new Set() };
+    const key = 'v1::' + (r.codGC || r.codClienteLoja || '');
+    if (key !== 'v1::') byD[dayKey].positivado.add(key);
+  });
   // Converte Sets para contagens
   Object.values(byD).forEach(d => {
     d.contato    = d.contato.size;
@@ -1680,7 +1728,6 @@ function _render(){
           const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
           const vAll=dedup(vRaw);
           const vm = metaUltimoSalv(vRaw);
-          console.log(`🔍 getMeta pmg vendor=${v} metaUltimoSalv=${vm}`);
           mFat+=vm;
           const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
           const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
@@ -2027,8 +2074,8 @@ function _render(){
     if (!r.date) return false;
     if (PERIOD === 'all') return true;
     if (PERIOD === 'hoje') {
-      const hoje = now2.toISOString().slice(0,10);
-      return r.date.toISOString().slice(0,10) === hoje;
+      const hoje = localDK(now2);
+      return localDK(r.date) === hoje;
     }
     if (PERIOD === 'custom') {
       if (D_FROM && r.date < D_FROM) return false;
@@ -2356,7 +2403,13 @@ function drawTbl(rows, noUpdate, periodMap){
       ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
       <td>${bdg}</td>
       <td style="font-family:'Roboto Mono',monospace;color:${fatVal>0?'#1a8c4e':'var(--text2)'};font-weight:${fatVal>0?700:400}">${fatVal>0?fBRL(fatVal):'—'}</td>
-      <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${r.dateRaw||'—'}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${(() => {
+        if (!r.dateRaw) return '—';
+        const d = r.date || pDate(r.dateRaw);
+        if (!d) return r.dateRaw;
+        const pad = n => String(n).padStart(2,'0');
+        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      })()}</td>
       <td>${car==='sim' ? `<span class="badge" style="background:#fff3cd;color:#b87a00">SIM</span>` : `<span style="color:var(--text3)">—</span>`}</td>
       <td style="font-family:'Roboto Mono',monospace">${r.contato||'—'}</td>
       <td style="font-family:'Roboto Mono',monospace;color:#1a8c4e">${r.diasVenda||'—'}</td>
