@@ -31,7 +31,7 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text);min-height:100vh;overflow-y:scroll}
+body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text);min-height:100vh;overflow-y:scroll;overflow-x:auto}
 
 /* ── HEADER ── */
 .hdr{position:sticky;top:0;z-index:100;background:var(--blue);box-shadow:var(--sh);overflow:hidden;min-height:100px}
@@ -79,7 +79,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--off);color:var(--text)
 .dinp:focus{border-color:var(--blue2)}
 
 /* ── MAIN ── */
-main{padding:26px 36px;max-width:1600px;margin:0 auto}
+main{padding:26px 36px;max-width:1600px;margin:0 auto;min-width:0}
 
 /* ── KPI ── */
 .kpi-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:14px;margin-bottom:22px}
@@ -1280,32 +1280,33 @@ function calcMargProd(rows) {
 function metaUltimoSalv(rows) {
   if (!rows || !rows.length) return 0;
   const vendor = rows[0] && rows[0].vendor;
-  // Tenta META_OUTROS primeiro — fonte confiável centralizada
+
+  // Primeiro tenta calcular pela aba PMG (mais confiável e atualizada)
+  const maxDate = rows.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
+  if (maxDate.getTime() > 0) {
+    const sorted = [...rows].sort((a,b) => (b.date?.getTime()||0) - (a.date?.getTime()||0));
+    const byGC = {};
+    sorted.forEach(r => {
+      const gc = r.client || '';
+      if (!gc) return;
+      const rDay = r.date ? localDK(r.date) : '';
+      if (!byGC[gc]) {
+        byGC[gc] = { day: rDay, total: r.meta || 0 };
+      } else if (rDay === byGC[gc].day) {
+        byGC[gc].total += r.meta || 0;
+      }
+    });
+    const total = Object.values(byGC).reduce((a,v) => a + v.total, 0);
+    if (total > 0) return total;
+  }
+
+  // Fallback: META_OUTROS (canais sem aba PMG)
   if (vendor && META_OUTROS) {
     const nomeCompleto = Object.entries(VENDOR_MAP).find(([,v]) => v === vendor)?.[0];
     const metaEntry = (nomeCompleto && META_OUTROS[nomeCompleto]) || META_OUTROS[vendor];
     if (metaEntry && metaEntry.metaFat > 0) return metaEntry.metaFat;
   }
-  // Fallback: pega o valor de meta mais recente por GC, somando duplicatas do mesmo GC na mesma data
-  // Ordena por data decrescente, pega a data mais recente que tem meta, soma por GC nessa data
-  const maxDate = rows.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
-  if (!maxDate.getTime()) return 0;
-  // Agrupa por GC usando o valor da linha mais recente de cada GC, somando duplicatas
-  const sorted = [...rows].sort((a,b) => (b.date?.getTime()||0) - (a.date?.getTime()||0));
-  const byGC = {}; // gc → { date, total }
-  sorted.forEach(r => {
-    const gc = r.client || '';
-    if (!gc) return;
-    const rDay = r.date ? localDK(r.date) : '';
-    if (!byGC[gc]) {
-      byGC[gc] = { day: rDay, total: r.meta || 0 };
-    } else if (rDay === byGC[gc].day) {
-      // Mesmo dia → soma (duplicatas intencionais como GC 168 do BRUNO)
-      byGC[gc].total += r.meta || 0;
-    }
-    // Dia anterior → ignora (byGC[gc].day já é mais recente)
-  });
-  return Object.values(byGC).reduce((a,v) => a + v.total, 0);
+  return 0;
 }
 
 function dedup(rows){
@@ -2458,6 +2459,7 @@ function drawTbl(rows, noUpdate, periodMap){
   });
 
   tb.innerHTML = sorted.slice(0,300).map(r => {
+    if ((r.client||'').trim() === '66934') console.log(`🔍 66934: vendor=${r.vendor} motivo="${r.motivo}" contato="${r.contato}" carteira="${r.carteira}" value=${r.value} fatVal=${v1Map[(r.client||'').trim()]||0}`);
     // FAT. MÊS: usa vendas_v1 se disponível, senão cai para r.value
     const fatV1  = v1Map[(r.client||'').trim()];
     const fatVal = fatV1 != null ? fatV1 : r.value;
