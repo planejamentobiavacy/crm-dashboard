@@ -192,6 +192,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
         <span class="upd" id="upd-v1" style="display:none"></span>
       </div>
       <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
+      <span id="kpi-bell-fat" onclick="saveSettAndLoad()" title="Faturamento atualizado — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:11px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 Venda</span>
       <button id="btn-bell" onclick="saveSettAndLoad()" style="display:none;position:relative;background:#1a3a8c;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700" title="Novo salvamento no PMG — clique para atualizar">
         🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">PMG</span>
         <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
@@ -363,8 +364,10 @@ async function loadConsolidado() {
     if (!data?.rows?.length) return;
 
     const map = {}; // vendedor → { dateObj, dateStr }
+    const pad = n => String(n).padStart(2,'0');
     const today = new Date();
-    const maxReasonable = new Date(today.getFullYear(), today.getMonth() + 2, 1); // máximo 2 meses no futuro
+    // Aceita apenas datas até fim do mês atual + 1 (evita MM/DD invertidos como 04/10 → outubro)
+    const maxReasonable = new Date(today.getFullYear(), today.getMonth() + 1, 28);
 
     data.rows.forEach(row => {
       const vendedor  = (row['VENDEDOR'] || '').trim().toUpperCase();
@@ -374,25 +377,32 @@ async function loadConsolidado() {
       let parsed = pDate(dataEnvio);
       if (!parsed) return;
 
-      // Se a data parecer no futuro (> 2 meses), tenta inverter dia/mês
       if (parsed > maxReasonable) {
         const m = dataEnvio.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
         if (m) {
           const inverted = pDate(`${m[2]}/${m[1]}/${m[3]}${dataEnvio.slice(m[0].length)}`);
           if (inverted && inverted <= maxReasonable) parsed = inverted;
-        }
+          else return;
+        } else return;
       }
 
       if (!map[vendedor] || parsed > map[vendedor].dateObj) {
-        const pad = n => String(n).padStart(2,'0');
         const str = `${pad(parsed.getDate())}/${pad(parsed.getMonth()+1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
         map[vendedor] = { dateObj: parsed, dateStr: str };
       }
     });
 
     CONSOLIDADO_DATAS = {};
-    Object.entries(map).forEach(([v, obj]) => { CONSOLIDADO_DATAS[v] = obj.dateStr; });
-    console.log(`✅ CONSOLIDADO: ${Object.keys(CONSOLIDADO_DATAS).length} vendedores`);
+    Object.entries(map).forEach(([v, obj]) => {
+      // Salva pela chave original
+      CONSOLIDADO_DATAS[v] = obj.dateStr;
+      // Salva também pelo nome abreviado (via VENDOR_MAP) para lookup nos cards
+      const abrev = VENDOR_MAP[v];
+      if (abrev) CONSOLIDADO_DATAS[abrev] = obj.dateStr;
+    });
+    console.log(`✅ CONSOLIDADO: ${Object.keys(CONSOLIDADO_DATAS).length} entradas`);
+    console.log(`🔍 CONSOLIDADO keys:`, Object.keys(CONSOLIDADO_DATAS).join(', '));
+    console.log(`🔍 CONSOLIDADO['ADRIANO']=`, CONSOLIDADO_DATAS['ADRIANO']);
   } catch(e) {
     console.warn('❌ CONSOLIDADO falhou:', e.message);
   }
@@ -495,6 +505,7 @@ async function checkUpdates() {
         });
         const execChanged = _lastV1ExecDate && newExec.getTime() > 0 && newExec > _lastV1ExecDate;
         const fatChanged  = _lastV1MaxDate  && newFat.getTime()  > 0 && newFat  > _lastV1MaxDate;
+        console.log(`🔔 checkUpdates: newExec=${localDK(newExec)} lastExec=${_lastV1ExecDate?localDK(_lastV1ExecDate):'null'} execChanged=${execChanged} | newFat=${localDK(newFat)} lastFat=${_lastV1MaxDate?localDK(_lastV1MaxDate):'null'} fatChanged=${fatChanged}`);
         if (execChanged || fatChanged) { showBell('novo fat'); return; }
       }
     }
@@ -1001,9 +1012,11 @@ function pDate(s){
     const hh  = m[4] ? m[4].padStart(2,'0') : '00';
     const mm5 = m[5] ? m[5].padStart(2,'0') : '00';
     let day = parseInt(m[1]), mon = parseInt(m[2]);
-    // Só troca se dia > 12 (impossível como dia, mas válido como mês) — formato MM/DD
-    if (day > 12 && mon <= 12) { const tmp = day; day = mon; mon = tmp; }
+    // Troca apenas se o primeiro campo NÃO pode ser dia (> 31) ou se o segundo campo NÃO pode ser mês (> 12)
+    // Formato MM/DD: primeiro campo é mês (≤12), segundo campo é dia (>12 impossível como mês)
+    if (mon > 12 && day <= 12) { const tmp = day; day = mon; mon = tmp; }
     // Se ambos ≤ 12: assume DD/MM (formato BR — padrão do Apps Script)
+    if (day > 31 || mon > 12) return null; // data inválida
     return new Date(`${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}T${hh}:${mm5}:00`);
   }
   return null;
@@ -1676,7 +1689,6 @@ function _render(){
       <div class="kpi-ico">${k.ico}</div>
       <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
         ${k.lbl}
-        ${k.bellId === 'kpi-bell-fat' ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="Faturamento atualizado — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 Faturamento</span>` : ''}
         ${k.bellId === 'kpi-bell-pmg' ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="Novo salvamento no PMG — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 PMG</span>` : ''}
       </div>
       <div class="kpi-val${k.lg?' lg':k.sm?' sm':''}">${k.val}</div>
@@ -1713,9 +1725,8 @@ function _render(){
     // Metas por grupo
     const getMeta = (pmgVendors, channelNomes, grpKey) => {
       let mFat=0, mPos=0;
+      // Canais via META_OUTROS
       if (channelNomes !== null) {
-        // Para RCA: soma TODAS as entradas de META_OUTROS que começam com "RCA"
-        // (independente de aparecerem em VENDAS_V1 no período)
         if (grpKey === 'rca') {
           Object.entries(META_OUTROS).forEach(([nome, m]) => {
             if (isRCA(nome)) { mFat+=m.metaFat||0; mPos+=m.metaPos||0; }
@@ -1723,12 +1734,13 @@ function _render(){
         } else {
           channelNomes.forEach(n => { const m=META_OUTROS[n]||{}; mFat+=m.metaFat||0; mPos+=m.metaPos||0; });
         }
-      } else {
+      }
+      // PMG vendors (pode coexistir com canais, ex: HAVA tem SAMARA com aba PMG)
+      if (pmgVendors && pmgVendors.length) {
         pmgVendors.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
           const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
           const vAll=dedup(vRaw);
-          const vm = metaUltimoSalv(vRaw);
-          mFat+=vm;
+          mFat+=metaUltimoSalv(vRaw);
           const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
           const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
           const vMtd=vAll.filter(r=>r.date&&r.date>=vBest);
