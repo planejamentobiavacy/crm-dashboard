@@ -531,6 +531,7 @@ async function checkUpdates() {
 // Verifica a cada 3 minutos
 setInterval(checkUpdates, 3 * 60 * 1000);
 let _rows = [];
+let _v1PeriodMap = {}; // mapa GC → fat do período (para filtro de etapa)
 
 const DEVELOPER_VENDORS = ['ALINE','CINTIA','KEULLY'];
 const HAVA_PMG_VENDORS  = ['SAMARA']; // vendedores com aba PMG mas que pertencem ao canal HAVA
@@ -2064,12 +2065,13 @@ function _render(){
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th>Cliente</th>
-          ${ACTIVE==='all'?'<th>Vendedor</th>':''}
-          <th>Etapa</th>
-          <th>Fat. Mês</th>
-          <th>Data Envio</th>
+          <th onclick="sortTbl('client')" style="cursor:pointer;user-select:none">Cliente <span id="sort-client"></span></th>
+          ${ACTIVE==='all'?'<th onclick="sortTbl(\'vendor\')" style="cursor:pointer;user-select:none">Vendedor <span id="sort-vendor"></span></th>':''}
+          <th onclick="sortTbl('status')" style="cursor:pointer;user-select:none">Etapa <span id="sort-status"></span></th>
+          <th onclick="sortTbl('fat')" style="cursor:pointer;user-select:none">Fat. Mês <span id="sort-fat"></span></th>
+          <th onclick="sortTbl('marg')" style="cursor:pointer;user-select:none">Marg. Prod. <span id="sort-marg"></span></th>
           <th>Carteira</th>
+          <th>Não Venda</th>
           <th>Dias Contato</th>
           <th>Dias Venda</th>
           <th>Motivo Não Venda</th>
@@ -2126,7 +2128,12 @@ function _render(){
     buildFunil(cntCar, cntCon, cntVen, cntNav, total);
     buildMotivos(rowsByDate);
     buildFatCanais(fatCanais);
+    _v1PeriodMap = v1PeriodMap;
     drawTbl(rawForTable, false, v1PeriodMap);
+    // Re-aplica filtro de etapa se estava ativo
+    if (_activeStg && _activeStg !== 'all') {
+      applyTblFilters(document.getElementById('tq')?.value || '', _activeStg);
+    }
     updateAlertBells();
   });
 }
@@ -2373,9 +2380,21 @@ function buildMotivos(rows) {
   }).join('');
 }
 
+let _tblSort = { col: 'fat', dir: 'desc' }; // estado de ordenação da tabela
+
+function sortTbl(col) {
+  if (_tblSort.col === col) {
+    _tblSort.dir = _tblSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _tblSort.col = col;
+    _tblSort.dir = 'desc';
+  }
+  applyTblFilters(document.getElementById('tq')?.value || '', _activeStg);
+}
+
 // ── TABLE ─────────────────────────────────────────────
 function drawTbl(rows, noUpdate, periodMap){
-  if(!noUpdate) { _rows = rows; _activeStg = 'all'; }
+  if(!noUpdate) { _rows = rows; }
   const tb = document.getElementById('tb'); if(!tb) return;
   const showV = ACTIVE==='all';
   const sm = {positivado:STAGES[0], nao_venda:STAGES[1], em_contato:STAGES[2], em_carteira:STAGES[3]};
@@ -2384,7 +2403,8 @@ function drawTbl(rows, noUpdate, periodMap){
   const now = new Date();
   const iniM = new Date(now.getFullYear(), now.getMonth(), 1);
   const fimM = new Date(now.getFullYear(), now.getMonth()+1, 0);
-  const v1Map = periodMap || {};
+  const v1Map  = periodMap || {};
+  const margMap = {}; // gc → marg produtiva
   // Se não recebeu periodMap, constrói do mês inteiro
   if (!periodMap) {
     VENDAS_V1.filter(r => r.date && r.date >= iniM && r.date <= fimM).forEach(r => {
@@ -2392,22 +2412,66 @@ function drawTbl(rows, noUpdate, periodMap){
       if (gc) v1Map[gc] = (v1Map[gc] || 0) + (r.fat || 0);
     });
   }
+  // Mapa de margem por GC (usando dados do mês inteiro)
+  const margByGC = {};
+  VENDAS_V1.filter(r => r.date && r.date >= iniM && r.date <= fimM).forEach(r => {
+    const gc = (r.codGC || '').trim();
+    if (!gc) return;
+    if (!margByGC[gc]) margByGC[gc] = { fat:0, custo:0, imp:0 };
+    margByGC[gc].fat   += r.fat    || 0;
+    margByGC[gc].custo += r.custo  || 0;
+    margByGC[gc].imp   += r.imposto|| 0;
+  });
+  Object.entries(margByGC).forEach(([gc, v]) => {
+    const base = v.fat - v.imp;
+    margMap[gc] = base > 0 ? (1 - v.custo / base) * 100 : null;
+  });
 
   if(!rows.length){
-    tb.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
+    tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:48px;color:var(--text3)">Nenhum dado encontrado</td></tr>`;
     return;
   }
 
-  tb.innerHTML = rows.slice(0,300).map(r => {
-    const sk  = status(r);
+  // Ordena as linhas conforme _tblSort
+  const statusOrder = { positivado:0, nao_venda:1, em_contato:2, em_carteira:3 };
+  const sorted = [...rows].sort((a, b) => {
+    const fatA = v1Map[(a.client||'').trim()] || a.value || 0;
+    const fatB = v1Map[(b.client||'').trim()] || b.value || 0;
+    const skA  = fatA>0?'positivado':(a.motivo&&a.motivo.trim()?'nao_venda':(a.contato&&a.contato.trim()?'em_contato':(a.carteira&&a.carteira.toLowerCase().trim()==='sim'?'em_carteira':null)));
+    const skB  = fatB>0?'positivado':(b.motivo&&b.motivo.trim()?'nao_venda':(b.contato&&b.contato.trim()?'em_contato':(b.carteira&&b.carteira.toLowerCase().trim()==='sim'?'em_carteira':null)));
+    const mA   = margMap[(a.client||'').trim()] ?? -999;
+    const mB   = margMap[(b.client||'').trim()] ?? -999;
+    let v = 0;
+    if      (_tblSort.col === 'fat')    v = fatA - fatB;
+    else if (_tblSort.col === 'marg')   v = mA - mB;
+    else if (_tblSort.col === 'date')   v = (a.date?.getTime()||0) - (b.date?.getTime()||0);
+    else if (_tblSort.col === 'client') v = (a.clientName||a.client||'').localeCompare(b.clientName||b.client||'');
+    else if (_tblSort.col === 'vendor') v = (a.vendor||'').localeCompare(b.vendor||'');
+    else if (_tblSort.col === 'status') v = (statusOrder[skA]??99) - (statusOrder[skB]??99);
+    return _tblSort.dir === 'desc' ? -v : v;
+  });
+
+  // Atualiza triângulos
+  ['client','vendor','status','fat','marg','date'].forEach(col => {
+    const el = document.getElementById(`sort-${col}`);
+    if (el) el.textContent = _tblSort.col===col ? (_tblSort.dir==='desc'?'▼':'▲') : '⬍';
+  });
+
+  tb.innerHTML = sorted.slice(0,300).map(r => {
+    // FAT. MÊS: usa vendas_v1 se disponível, senão cai para r.value
+    const fatV1  = v1Map[(r.client||'').trim()];
+    const fatVal = fatV1 != null ? fatV1 : r.value;
+    // Status: usa fatVal (fonte confiável) para POSITIVADO
+    const sk = fatVal > 0 ? 'positivado'
+             : (r.motivo && r.motivo.trim()) ? 'nao_venda'
+             : (r.contato && r.contato.trim()) ? 'em_contato'
+             : (r.carteira && r.carteira.toLowerCase().trim() === 'sim') ? 'em_carteira'
+             : null;
     const st  = sk ? sm[sk] : null;
     const bdg = st
       ? `<span class="badge" style="background:${st.bg};color:${st.col}">${st.lbl}</span>`
       : `<span class="badge" style="background:#f0f0f0;color:#aaa">—</span>`;
     const car = (r.carteira||'').toLowerCase().trim();
-    // FAT. MÊS: usa vendas_v1 se disponível, senão cai para r.value
-    const fatV1  = v1Map[(r.client||'').trim()];
-    const fatVal = fatV1 != null ? fatV1 : r.value;
     return `<tr>
       <td>
         ${r.clientName ? `<div style="font-weight:600">${r.clientName}</div><div style="font-size:10px;color:var(--text3)">${r.client||''}</div>` : (r.client||'—')}
@@ -2415,14 +2479,9 @@ function drawTbl(rows, noUpdate, periodMap){
       ${showV?`<td style="font-weight:700;color:var(--blue)">${r.vendor}</td>`:''}
       <td>${bdg}</td>
       <td style="font-family:'Roboto Mono',monospace;color:${fatVal>0?'#1a8c4e':'var(--text2)'};font-weight:${fatVal>0?700:400}">${fatVal>0?fBRL(fatVal):'—'}</td>
-      <td style="font-family:'Roboto Mono',monospace;color:var(--text3)">${(() => {
-        if (!r.dateRaw) return '—';
-        const d = r.date || pDate(r.dateRaw);
-        if (!d) return r.dateRaw;
-        const pad = n => String(n).padStart(2,'0');
-        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      })()}</td>
+      <td style="font-family:'Roboto Mono',monospace;color:var(--text2);font-size:12px">${(() => { const m = margMap[(r.client||'').trim()]; return m!=null ? m.toFixed(1)+'%' : '—'; })()}</td>
       <td>${car==='sim' ? `<span class="badge" style="background:#fff3cd;color:#b87a00">SIM</span>` : `<span style="color:var(--text3)">—</span>`}</td>
+      <td>${r.motivo&&r.motivo.trim() ? `<span class="badge" style="background:#ffeaea;color:#cc1a1a">SIM</span>` : `<span style="color:var(--text3)">—</span>`}</td>
       <td style="font-family:'Roboto Mono',monospace">${r.contato||'—'}</td>
       <td style="font-family:'Roboto Mono',monospace;color:#1a8c4e">${r.diasVenda||'—'}</td>
       <td style="color:var(--red);font-weight:${r.motivo?600:400}">${r.motivo||'—'}</td>
@@ -2430,7 +2489,7 @@ function drawTbl(rows, noUpdate, periodMap){
   }).join('');
 
   if(rows.length>300)
-    tb.innerHTML+=`<tr><td colspan="9" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Exibindo 300 de ${rows.length} registros</td></tr>`;
+    tb.innerHTML+=`<tr><td colspan="10" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">Exibindo 300 de ${rows.length} registros</td></tr>`;
 }
 function fltTbl(q){
   applyTblFilters(q, _activeStg);
@@ -2447,9 +2506,17 @@ function setStgFilter(stg, el){
 
 function applyTblFilters(q, stg){
   let filtered = _rows;
-  // Filtro de etapa
+  // Filtro de etapa — usa mesma lógica do badge na tabela (fatVal de vendas_v1)
   if(stg && stg !== 'all'){
-    filtered = filtered.filter(r => status(r) === stg);
+    filtered = filtered.filter(r => {
+      const fatVal = (_v1PeriodMap[(r.client||'').trim()] || 0) || r.value || 0;
+      const sk = fatVal > 0 ? 'positivado'
+               : (r.motivo && r.motivo.trim()) ? 'nao_venda'
+               : (r.contato && r.contato.trim()) ? 'em_contato'
+               : (r.carteira && r.carteira.toLowerCase().trim() === 'sim') ? 'em_carteira'
+               : null;
+      return sk === stg;
+    });
   }
   // Filtro de texto
   if(q && q.trim()){
