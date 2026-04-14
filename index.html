@@ -620,30 +620,50 @@ let _asIdx = 0;
 
 // Carrega TODOS os vendedores via cache (rápido) ou ao vivo (fallback)
 async function loadAllFromAppsScript() {
-  try {
-    // Tenta cache primeiro — resposta em ~200ms se o trigger estiver ativo
-    const url = `${APPS_SCRIPT_URL}?action=exportCached&t=${Date.now()}`;
-    const r = await fetch(url, { redirect: 'follow', signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 30000); return c.signal; })() });
-    if (r.ok) {
-      const txt = await r.text();
-      const data = JSON.parse(txt);
-      if (data && data.status === 'ok' && data.vendedores) {
-        const filtered = {};
-        Object.keys(data.vendedores).forEach(nome => {
-          if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-        });
-        const src = data._fromCache ? '⚡ cache' : '🔄 ao vivo';
-        console.log(`✅ Export (${src}): ${Object.keys(filtered).length} vendedores`);
-        // Se veio do cache, dispara refresh silencioso em background para atualizar o cache
-        if (data._fromCache) {
-          setTimeout(() => warmServerCache(), 500);
-        }
-        return filtered;
-      }
+  // Tenta exportCached primeiro (rápido se cache ativo), depois exportFresh como fallback
+  const tryFetch = async (action, timeoutMs) => {
+    const url = `${APPS_SCRIPT_URL}?action=${action}&t=${Date.now()}`;
+    const c = new AbortController();
+    const tid = setTimeout(() => c.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { redirect: 'follow', signal: c.signal });
+      clearTimeout(tid);
+      if (!r.ok) return null;
+      const data = JSON.parse(await r.text());
+      if (data?.status === 'ok' && data?.vendedores) return data;
+      return null;
+    } catch(e) {
+      clearTimeout(tid);
+      return null;
     }
-  } catch(e) {
-    console.warn('❌ Export falhou:', e.message);
+  };
+
+  // 1ª tentativa: cache (90s)
+  let data = await tryFetch('exportCached', 90000);
+  if (data) {
+    const filtered = {};
+    Object.keys(data.vendedores).forEach(nome => {
+      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
+    });
+    const src = data._fromCache ? '⚡ cache' : '🔄 ao vivo';
+    console.log(`✅ Export (${src}): ${Object.keys(filtered).length} vendedores`);
+    if (data._fromCache) setTimeout(() => warmServerCache(), 500);
+    return filtered;
   }
+
+  // 2ª tentativa: fresh (120s)
+  console.warn('⚠️ exportCached falhou, tentando exportFresh...');
+  data = await tryFetch('exportFresh', 120000);
+  if (data) {
+    const filtered = {};
+    Object.keys(data.vendedores).forEach(nome => {
+      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
+    });
+    console.log(`✅ Export (fresh): ${Object.keys(filtered).length} vendedores`);
+    return filtered;
+  }
+
+  console.warn('❌ Export falhou em ambas as tentativas');
   return null;
 }
 
