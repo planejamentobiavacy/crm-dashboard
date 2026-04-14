@@ -197,8 +197,6 @@ tbody td:first-child{font-weight:700;color:var(--text)}
         🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">PMG</span>
         <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
       </button>
-      <button class="btn btn-r" onclick="toggleSett()">⚙ Configurar</button>
-      <button class="btn" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.3)" onclick="showDebug()">🔍 Debug</button>
     </div>
   </div>
 </div>
@@ -278,12 +276,12 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 </div>
 
 <!-- BANNER ATUALIZANDO -->
-<div id="updating-banner" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;background:var(--white);border-radius:16px;padding:28px 40px;box-shadow:0 12px 48px rgba(26,58,140,.22);border:2px solid var(--gray);text-align:center;min-width:260px">
+<div id="updating-banner" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;background:var(--white);border-radius:16px;padding:28px 40px;box-shadow:0 12px 48px rgba(26,58,140,.22);border:2px solid var(--gray);text-align:center;min-width:280px">
   <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:10px">
     <div style="width:20px;height:20px;border:3px solid var(--gray);border-top-color:var(--blue);border-radius:50%;animation:sp .75s linear infinite;flex-shrink:0"></div>
     <div style="font-size:16px;font-weight:800;color:var(--text);letter-spacing:.3px">Atualizando dados…</div>
   </div>
-  <div style="font-size:11px;color:var(--text3);font-weight:500">Carregando carteiras dos vendedores</div>
+  <div id="updating-status" style="font-size:11px;color:var(--text3);font-weight:500">Carregando faturamento e metas…</div>
 </div>
 <div id="updating-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:rgba(244,246,251,.55);backdrop-filter:blur(2px)"></div>
 
@@ -638,8 +636,8 @@ async function loadAllFromAppsScript() {
     }
   };
 
-  // 1ª tentativa: cache (90s)
-  let data = await tryFetch('exportCached', 90000);
+  // 1ª tentativa: exportCached com timeout de 20s (só pega se cache estiver quente)
+  let data = await tryFetch('exportCached', 20000);
   if (data) {
     const filtered = {};
     Object.keys(data.vendedores).forEach(nome => {
@@ -651,9 +649,9 @@ async function loadAllFromAppsScript() {
     return filtered;
   }
 
-  // 2ª tentativa: fresh (120s)
-  console.warn('⚠️ exportCached falhou, tentando exportFresh...');
-  data = await tryFetch('exportFresh', 120000);
+  // 2ª tentativa: exportFresh com timeout de 90s
+  console.warn('⚠️ exportCached não respondeu, tentando exportFresh...');
+  data = await tryFetch('exportFresh', 90000);
   if (data) {
     const filtered = {};
     Object.keys(data.vendedores).forEach(nome => {
@@ -1070,8 +1068,10 @@ async function loadData(){
   // Mostra banner de atualização imediatamente
   document.getElementById('updating-banner').style.display = 'block';
   document.getElementById('updating-overlay').style.display = 'block';
+  const setStatus = (txt) => { const el = document.getElementById('updating-status'); if(el) el.textContent = txt; };
 
   // Fase 1: assim que vendas_v1 + META_OUTROS chegarem — renderiza parcial
+  setStatus('Carregando faturamento e metas…');
   await Promise.all([promiseV1, promiseMeta, promiseCons]);
   console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length}`);
 
@@ -1082,10 +1082,20 @@ async function loadData(){
   document.getElementById('dbar').style.display = 'flex';
   document.getElementById('gbar').style.display = 'flex';
   document.getElementById('vtabs-bar').style.display = 'block';
+
+  // Fecha banner da Fase 1 — dados de faturamento já disponíveis
+  document.getElementById('updating-banner').style.display = 'none';
+  document.getElementById('updating-overlay').style.display = 'none';
   buildTabs(); render();
 
-  // Fase 2: assim que PMG chegar (já estava rodando em paralelo)
+  // Fase 2: aguarda PMG em background — mostra indicador sutil no header
+  const pmgIndicator = document.createElement('span');
+  pmgIndicator.style.cssText = 'font-size:10px;color:rgba(255,255,255,.6);margin-left:8px;animation:pulse 1.5s ease-in-out infinite';
+  pmgIndicator.textContent = '⏳ PMG…';
+  document.getElementById('upd').parentNode.appendChild(pmgIndicator);
+
   const exportData = await promisePmg;
+  pmgIndicator.remove();
   console.log(`⏱️ Fase 2 (PMG): ${Date.now()-t0}ms | export=${!!exportData}`);
 
   const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
@@ -1114,10 +1124,6 @@ async function loadData(){
   _lastPmgMaxDate = getPmgMaxDate();
 
   buildTabs(); render();
-
-  // Esconde banner ao finalizar
-  document.getElementById('updating-banner').style.display = 'none';
-  document.getElementById('updating-overlay').style.display = 'none';
 
   console.log(`⏱️ Render completo: ${Date.now()-t0}ms`);
 }
@@ -1570,7 +1576,7 @@ function _render(){
   });
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
-  const margProdMtd = calcMargProd(v1Filt);
+  const margProdMtd = calcMargProd(v1Period);
   const margProdStr = margProdMtd !== null ? margProdMtd.toFixed(1) + '%' : '—';
   // Positivado MTD = contagem distinta de COD_CLIENTE_LOJA com FAT > 0
   const positSet    = new Set(v1Filt.filter(r => r.fat > 0).map(r => r.codClienteLoja));
@@ -1693,7 +1699,7 @@ function _render(){
   const kpisRow1 = [
     {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', bellId:'kpi-bell-fat'},
     {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanais), kc:'var(--blue)', ating: atingCanais},
-    {ico:'📊', lbl:'Marg. Prod.', sub:'Período (Fat-Imp-Custo)', val:margProdStr, kc:'#1a8c4e'},
+    {ico:'📊', lbl:'Marg. Prod.', sub:'Período · Fat-Imp-Custo', val:margProdStr, kc:'#1a8c4e'},
     {ico:'💼', lbl:'Carteira',         sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
     {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)',  bellId:'kpi-bell-pmg'},
     {ico:'🛒', lbl:'Venda',            sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
