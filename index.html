@@ -193,7 +193,7 @@ tbody td:first-child{font-weight:700;color:var(--text)}
       </div>
       <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
       <span id="kpi-bell-fat" onclick="saveSettAndLoad()" title="Faturamento atualizado — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:11px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 Venda</span>
-      <button id="btn-bell" onclick="saveSettAndLoad()" style="display:none;position:relative;background:#1a3a8c;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700" title="Novo salvamento no PMG — clique para atualizar">
+      <button id="btn-bell" onclick="saveSettAndLoad()" style="display:none;position:relative;background:#1a3a8c;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;animation:bellPulse 1.5s ease-in-out infinite" title="Novo salvamento no PMG — clique para atualizar">
         🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">PMG</span>
         <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
       </button>
@@ -1534,10 +1534,10 @@ function _render(){
     const vMetaFat = metaUltimoSalv(vdRaw);
     const vRowsMeta = vdAll.filter(r => r.date && r.date >= bestMonth);
     const vMetaPos = vRowsMeta.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
-    // Positivado MTD via vendas_v1
+    // Positivado do período via vendas_v1 (respeita filtro de período)
     const vPositSet = new Set(
-      VENDAS_V1.filter(r => r.vendor === v && r.date && r.date >= iniMes2 && r.fat > 0)
-               .map(r => r.codClienteLoja)
+      v1Period.filter(r => r.vendor === v && r.fat > 0)
+              .map(r => r.codClienteLoja)
     );
     const vPositMtd = vPositSet.size;
     const vAtingFat = vMetaFat > 0 ? Math.round((vFat / vMetaFat) * 100) : null;
