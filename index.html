@@ -274,6 +274,13 @@ tbody td:first-child{font-weight:700;color:var(--text)}
   <div class="dchip"        id="gchip-ka"        onclick="setGroupChip('ka')"       >KA</div>
   <div class="dchip"        id="gchip-hava"      onclick="setGroupChip('hava')"     >Hava</div>
 </div>
+<div class="dbar" id="cbar" style="display:none;background:var(--white);border-bottom:2px solid var(--gray)">
+  <span class="dlbl">💎 CLUSTER:</span>
+  <div class="dchip active" id="cchip-all"      onclick="setClusterChip(null)">Todos</div>
+  <div class="dchip"        id="cchip-diamante" onclick="setClusterChip('DIAMANTE')" style="--cc:#4a90d9">💎 Diamante</div>
+  <div class="dchip"        id="cchip-ouro"     onclick="setClusterChip('OURO')"     style="--cc:#b87a00">🥇 Ouro</div>
+  <div class="dchip"        id="cchip-demais"   onclick="setClusterChip('DEMAIS')"   style="--cc:#6b7280">🔹 Demais</div>
+</div>
 
 <!-- BANNER ATUALIZANDO -->
 <div id="updating-banner" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;background:var(--white);border-radius:16px;padding:28px 40px;box-shadow:0 12px 48px rgba(26,58,140,.22);border:2px solid var(--gray);text-align:center;min-width:280px">
@@ -282,6 +289,10 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div style="font-size:16px;font-weight:800;color:var(--text);letter-spacing:.3px">Atualizando dados…</div>
   </div>
   <div id="updating-status" style="font-size:11px;color:var(--text3);font-weight:500">Carregando faturamento e metas…</div>
+  <div id="updating-skip" style="display:none;margin-top:14px">
+    <button onclick="window._skipPmg && window._skipPmg()" style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.3px">Usar dados anteriores</button>
+    <div style="font-size:10px;color:var(--text3);margin-top:5px">PMG do cache anterior será mantido</div>
+  </div>
 </div>
 <div id="updating-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:rgba(244,246,251,.55);backdrop-filter:blur(2px)"></div>
 
@@ -311,6 +322,7 @@ const C = {
   metaPos: 'META POSIT.', // coluna de meta de positivação
   positMes: 'POSIT. MÊS', // coluna de positivados acumulados no mês
   dv:  'DIAS VENDA',     // coluna de dias venda (positivados no gráfico)
+  cluster: 'CLUSTER',    // coluna de cluster (DIAMANTE/OURO/DEMAIS)
 };
 
 const STAGES = [
@@ -321,7 +333,7 @@ const STAGES = [
 ];
 
 // ── STATE ────────────────────────────────────────────
-let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all', VENDOR_HIGHLIGHT = null;
+let DATA = {}, ACTIVE = 'all', PERIOD = 'all', GROUP = 'all', VENDOR_HIGHLIGHT = null, CLUSTER_FILTER = null;
 
 // Mapeamento NOME_VENDEDOR (vendas_v1) → nome da aba
 const VENDOR_MAP = {
@@ -429,6 +441,38 @@ async function loadMetaOutros() {
   }
 }
 
+let CLIENTE_CLUSTER = {}; // { GC: 'DIAMANTE'|'OURO'|'DEMAIS' }
+
+async function loadClienteCluster() {
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=CLIENTE_CLUSTER&t=${Date.now()}`;
+    const c = new AbortController(); setTimeout(() => c.abort(), 10000);
+    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    if (!r.ok) return;
+    const txt = await r.text();
+    if (!txt || txt.trim().startsWith('<')) return;
+    const data = JSON.parse(txt);
+    if (!data?.rows?.length) return;
+    const row0 = data.rows[0];
+    const keys = Object.keys(row0);
+    const gcKey = keys.find(k => k.toUpperCase().replace(/\s+/g,'_') === 'GRUPO_COMERCIAL')
+               || keys.find(k => k.toUpperCase().includes('GRUPO'))
+               || keys[0];
+    const clKey = keys.find(k => k.toUpperCase() === 'CLUSTER')
+               || keys.find(k => k.toUpperCase().includes('CLUSTER'))
+               || keys[1];
+    CLIENTE_CLUSTER = {};
+    data.rows.forEach(row => {
+      const gc = String(row[gcKey]||'').trim().replace(/\.0+$/, '');
+      const cl = (row[clKey]||'').trim().toUpperCase();
+      if (gc && cl) CLIENTE_CLUSTER[gc] = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+    });
+    console.log(`✅ CLIENTE_CLUSTER: ${Object.keys(CLIENTE_CLUSTER).length} GCs`);
+  } catch(e) {
+    console.warn('❌ CLIENTE_CLUSTER falhou:', e.message);
+  }
+}
+
 let D_FROM = null, D_TO = null, CH = null;
 let _lastV1MaxDate  = null;   // última data máxima da vendas_v1 (DATA_FAT)
 let _lastV1ExecDate = null;   // última DT_EXECUCAO da vendas_v1
@@ -446,10 +490,11 @@ function getV1MaxExecDate() {
 }
 
 function getPmgMaxDate() {
+  // Usa data máxima do CONSOLIDADO (último salvamento de qualquer vendedor)
   let max = new Date(0);
-  Object.values(DATA).forEach(rows => {
-    if (!Array.isArray(rows)) return;
-    rows.forEach(r => { if (r.date && r.date > max) max = r.date; });
+  Object.values(CONSOLIDADO_DATAS).forEach(str => {
+    const d = pDate(str);
+    if (d && d > max) max = d;
   });
   return max;
 }
@@ -509,18 +554,29 @@ async function checkUpdates() {
     }
   } catch(e) {}
   try {
-    // Verifica PMG — pega o ping do export para ver se mudou
-    const url2 = `${APPS_SCRIPT_URL}?action=export&t=${Date.now()}`;
-    const c2 = new AbortController(); setTimeout(() => c2.abort(), 30000);
+    // Verifica PMG via CONSOLIDADO — compara data máxima de salvamento dos vendedores
+    const url2 = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
+    const c2 = new AbortController(); setTimeout(() => c2.abort(), 15000);
     const r2 = await fetch(url2, { redirect:'follow', signal: c2.signal });
     if (r2.ok) {
       const d2 = await r2.json();
-      if (d2?.vendedores) {
+      if (d2?.rows?.length) {
         let newMax = new Date(0);
-        Object.values(d2.vendedores).forEach(rows => {
-          rows.forEach(row => { const d = pDate(row['DATA ENVIO']||''); if (d && d > newMax) newMax = d; });
+        const maxReasonable = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 28);
+        d2.rows.forEach(row => {
+          const dataEnvio = (row['DATA ENVIO'] || '').trim();
+          if (!dataEnvio) return;
+          let d = pDate(dataEnvio);
+          if (!d) return;
+          if (d > maxReasonable) {
+            const m = dataEnvio.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+            if (m) { const inv = pDate(`${m[2]}/${m[1]}/${m[3]}${dataEnvio.slice(m[0].length)}`); if (inv && inv <= maxReasonable) d = inv; else return; } else return;
+          }
+          if (d > newMax) newMax = d;
         });
-        if (_lastPmgMaxDate && newMax > _lastPmgMaxDate) { showBell('novo pmg'); return; }
+        if (_lastPmgMaxDate && newMax.getTime() > 0 && newMax > _lastPmgMaxDate) {
+          showBell('novo pmg'); return;
+        }
       }
     }
   } catch(e) {}
@@ -560,7 +616,11 @@ const getGroupVendors = () => {
 };
 
 // ── BOOT ─────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', loadData);
+window.addEventListener('DOMContentLoaded', () => {
+  loadData();
+  // Aquece o cache do servidor em background para acelerar próximas cargas
+  setTimeout(() => warmServerCache(), 3000);
+});
 
 // ── SETTINGS ─────────────────────────────────────────
 function toggleSett(){
@@ -636,7 +696,7 @@ async function loadAllFromAppsScript() {
     }
   };
 
-  // 1ª tentativa: exportCached com timeout de 20s (só pega se cache estiver quente)
+  // 1ª tentativa: exportCached — timeout ampliado p/ cobrir cold start do Apps Script
   let data = await tryFetch('exportCached', 20000);
   if (data) {
     const filtered = {};
@@ -649,9 +709,21 @@ async function loadAllFromAppsScript() {
     return filtered;
   }
 
-  // 2ª tentativa: exportFresh com timeout de 90s
+  // 2ª tentativa: exportCached de novo (cold start do Apps Script pode ter demorado)
+  console.warn('⚠️ exportCached 1ª tentativa falhou — retry...');
+  data = await tryFetch('exportCached', 20000);
+  if (data) {
+    const filtered = {};
+    Object.keys(data.vendedores).forEach(nome => {
+      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
+    });
+    console.log(`✅ Export (retry cached): ${Object.keys(filtered).length} vendedores`);
+    return filtered;
+  }
+
+  // 3ª tentativa: exportFresh com timeout de 60s
   console.warn('⚠️ exportCached não respondeu, tentando exportFresh...');
-  data = await tryFetch('exportFresh', 90000);
+  data = await tryFetch('exportFresh', 60000);
   if (data) {
     const filtered = {};
     Object.keys(data.vendedores).forEach(nome => {
@@ -661,7 +733,7 @@ async function loadAllFromAppsScript() {
     return filtered;
   }
 
-  console.warn('❌ Export falhou em ambas as tentativas');
+  console.warn('❌ Export falhou em todas as tentativas');
   return null;
 }
 
@@ -795,7 +867,8 @@ function parseAppsScript(json, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv),
+        iCluster=fi(C.cluster||'CLUSTER');
 
   const get = (row, key) => key ? (row[key] || '').trim() : '';
   const num = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
@@ -821,6 +894,7 @@ function parseAppsScript(json, vendor) {
       carteira:  iCa >= 0 ? get(row, headers[iCa]) : '',
       contato:   iCo >= 0 ? get(row, headers[iCo]) : '',
       motivo:    [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      cluster:   iCluster >= 0 ? get(row, headers[iCluster]).toUpperCase().trim() : '',
       _via:      'apps-script',
     });
   }
@@ -845,7 +919,8 @@ function parseCSV(txt, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv),
+        iCluster=fi(C.cluster||'CLUSTER');
 
   const get  = (c, i) => i >= 0 ? (c[i]||'').replace(/^"|"$/g,'').trim() : '';
   const num  = (s) => parseFloat((s||'').replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.')) || 0;
@@ -872,6 +947,7 @@ function parseCSV(txt, vendor) {
       carteira:   get(c, iCa),
       contato:    get(c, iCo),
       motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      cluster:    iCluster >= 0 ? (get(c, iCluster)||'').toUpperCase().trim() : '',
       _via:       'csv',
       _rawCols:   c,
       _iDv:       iDv,
@@ -910,7 +986,8 @@ function parseGviz(resp, vendor) {
 
   const iCl=fi(C.cl), iCn=fi(C.cn||'CLIENTE'), iDt=fi(C.dt), iVl=fi(C.vl), iCa=fi(C.ca),
         iCo=fi(C.co), iMo=fi(C.mo), iMo2=fi('MOTIVO'),
-        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv);
+        iMeta=fi(C.meta), iMetaPos=fi(C.metaPos||'META POSIT.'), iPositMes=fi(C.positMes||'POSIT. MÊS'), iDv=fi(C.dv),
+        iCluster=fi(C.cluster||'CLUSTER');
 
   // Helpers para ler células gviz
   const gStr = (row, i) => {
@@ -991,6 +1068,7 @@ function parseGviz(resp, vendor) {
       carteira:   gStr(row, iCa),
       contato:    gStrFull(row, iCo),
       motivo:     [motivoNV, motivoMot].filter(v => v && v.trim()).join(' | '),
+      cluster:    iCluster >= 0 ? gStr(row, iCluster).toUpperCase().trim() : '',
     });
   }
   return rows;
@@ -1046,6 +1124,29 @@ function pMoney(s){
 }
 
 // ── LOAD ──────────────────────────────────────────────
+let _cachedPmgData = null;      // cache local dos dados PMG da última carga
+let _cachedPmgConsolidado = {}; // CONSOLIDADO_DATAS no momento do último PMG
+
+// Carrega cache PMG do localStorage (persiste entre sessões)
+function loadPmgCache() {
+  try {
+    const raw = localStorage.getItem('avacy_pmg_cache');
+    if (!raw) return;
+    const obj = JSON.parse(raw);
+    if (obj && obj.data && obj.consolidado) {
+      _cachedPmgData = obj.data;
+      _cachedPmgConsolidado = obj.consolidado;
+      console.log('💾 Cache PMG restaurado do localStorage');
+    }
+  } catch(e) {}
+}
+function savePmgCache(data, consolidado) {
+  try {
+    localStorage.setItem('avacy_pmg_cache', JSON.stringify({ data, consolidado, ts: Date.now() }));
+  } catch(e) {}
+}
+loadPmgCache(); // Carrega imediatamente ao iniciar
+
 async function loadData(){
   const btn = document.getElementById('btn-ref');
   btn.classList.add('ld');
@@ -1059,20 +1160,20 @@ async function loadData(){
   const allCandidates = C.sh;
   allCandidates.forEach(name => { DATA[name] = []; });
 
-  // Dispara as 4 fetches SIMULTANEAMENTE
+  // Dispara fetches de dados rápidos SIMULTANEAMENTE
   const promiseV1   = loadVendasV1();
   const promiseMeta = loadMetaOutros();
-  const promisePmg  = loadAllFromAppsScript();
   const promiseCons = loadConsolidado();
+  const promiseCC   = loadClienteCluster();
 
   // Mostra banner de atualização imediatamente
   document.getElementById('updating-banner').style.display = 'block';
   document.getElementById('updating-overlay').style.display = 'block';
   const setStatus = (txt) => { const el = document.getElementById('updating-status'); if(el) el.textContent = txt; };
 
-  // Fase 1: assim que vendas_v1 + META_OUTROS chegarem — renderiza parcial
+  // Fase 1: aguarda vendas_v1 + META_OUTROS + CONSOLIDADO
   setStatus('Carregando faturamento e metas…');
-  await Promise.all([promiseV1, promiseMeta, promiseCons]);
+  await Promise.all([promiseV1, promiseMeta, promiseCons, promiseCC]);
   console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length}`);
 
   btn.classList.remove('ld');
@@ -1081,47 +1182,115 @@ async function loadData(){
   document.getElementById('upd').textContent = `Dados Atualizados em ${pad0a(now0a.getDate())}/${pad0a(now0a.getMonth()+1)} ${pad0a(now0a.getHours())}:${pad0a(now0a.getMinutes())}`;
   document.getElementById('dbar').style.display = 'flex';
   document.getElementById('gbar').style.display = 'flex';
+  document.getElementById('cbar').style.display = 'flex';
   document.getElementById('vtabs-bar').style.display = 'block';
 
-  // Fecha banner da Fase 1 — dados de faturamento já disponíveis
-  document.getElementById('updating-banner').style.display = 'none';
-  document.getElementById('updating-overlay').style.display = 'none';
-  buildTabs(); render();
+  // Verifica se CONSOLIDADO mudou desde o último PMG carregado
+  const consolidadoStr = JSON.stringify(CONSOLIDADO_DATAS);
+  const pmgMudou = consolidadoStr !== JSON.stringify(_cachedPmgConsolidado);
 
-  // Fase 2: aguarda PMG em background — mostra indicador sutil no header
-  const pmgIndicator = document.createElement('span');
-  pmgIndicator.style.cssText = 'font-size:10px;color:rgba(255,255,255,.6);margin-left:8px;animation:pulse 1.5s ease-in-out infinite';
-  pmgIndicator.textContent = '⏳ PMG…';
-  document.getElementById('upd').parentNode.appendChild(pmgIndicator);
-
-  const exportData = await promisePmg;
-  pmgIndicator.remove();
-  console.log(`⏱️ Fase 2 (PMG): ${Date.now()-t0}ms | export=${!!exportData}`);
-
-  const shOriginal = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
-
-  if (exportData) {
+  // ── Função auxiliar: popula DATA com exportData
+  const applyExport = (exportData) => {
+    const shOrig = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS','JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL','ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
     allCandidates.forEach(name => {
       const vendorRows = exportData[name];
       if (vendorRows && vendorRows.length > 0) {
         const headers = Object.keys(vendorRows[0]);
         DATA['__cols__' + name] = headers;
         DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
-      } else {
-        DATA[name] = [];
-      }
+      } else { DATA[name] = []; }
     });
-  } else {
-    console.warn('Export falhou');
-    allCandidates.forEach(name => { DATA[name] = []; });
+    const active = allCandidates.filter(v => (DATA[v]||[]).length > 0);
+    C.sh = active.length > 0 ? active : shOrig;
+    _lastV1MaxDate  = getV1MaxDate();
+    _lastV1ExecDate = getV1MaxExecDate();
+    _lastPmgMaxDate = getPmgMaxDate();
+  };
+
+  if (_cachedPmgData) {
+    // Sempre renderiza imediatamente com cache
+    applyExport(_cachedPmgData);
+    document.getElementById('updating-banner').style.display = 'none';
+    document.getElementById('updating-overlay').style.display = 'none';
+    buildTabs(); render();
+    console.log(`⚡ Render com cache: ${Date.now()-t0}ms | pmgMudou=${pmgMudou}`);
+
+    if (!pmgMudou) {
+      console.log('⚡ CONSOLIDADO não mudou — sem busca PMG');
+      return;
+    }
+
+    // PMG mudou — busca novo em background silencioso
+    console.log('🔄 PMG mudou — buscando em background...');
+    loadAllFromAppsScript().then(newExport => {
+      if (!newExport) { console.warn('❌ PMG background falhou'); return; }
+      applyExport(newExport);
+      _cachedPmgData = newExport;
+      _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
+      savePmgCache(newExport, _cachedPmgConsolidado);
+      window._gcClusterMapGlobal = {};
+      buildTabs(); render();
+      console.log('✅ PMG background atualizado');
+    });
+    return;
   }
 
-  const activeSheets = allCandidates.filter(v => (DATA[v]||[]).length > 0);
-  C.sh = activeSheets.length > 0 ? activeSheets : shOriginal;
-  console.log('✅ Abas ativas:', C.sh.join(', '));
+  // Sem cache nenhum: aguarda PMG com banner
+  document.getElementById('updating-banner').style.display = 'none';
+  document.getElementById('updating-overlay').style.display = 'none';
+  buildTabs(); render();
+  document.getElementById('updating-banner').style.display = 'block';
+  document.getElementById('updating-overlay').style.display = 'block';
+  const updStatus2 = document.getElementById('updating-status');
+  if (updStatus2) updStatus2.textContent = 'Carregando carteiras dos vendedores…';
 
-  _lastV1MaxDate  = getV1MaxDate();
-  _lastPmgMaxDate = getPmgMaxDate();
+  const exportData = await loadAllFromAppsScript();
+  document.getElementById('updating-banner').style.display = 'none';
+  document.getElementById('updating-overlay').style.display = 'none';
+  console.log(`⏱️ PMG (sem cache): ${Date.now()-t0}ms | export=${!!exportData}`);
+
+  if (exportData) {
+    applyExport(exportData);
+    _cachedPmgData = exportData;
+    _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
+    savePmgCache(exportData, _cachedPmgConsolidado);
+    window._gcClusterMapGlobal = {};
+  } else {
+    console.warn('Export falhou — iniciando retry automático em background');
+    // Retry automático: 3 tentativas com 15s de intervalo — cobre cold start + aquecimento
+    const updStatusRetry = document.getElementById('updating-status');
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryInterval = 15000;
+    const doRetry = async () => {
+      retryCount++;
+      console.log(`🔁 Retry PMG ${retryCount}/${maxRetries}...`);
+      if (updStatusRetry) updStatusRetry.textContent = `Tentando carregar carteiras… (${retryCount}/${maxRetries})`;
+      document.getElementById('updating-banner').style.display = 'block';
+      document.getElementById('updating-overlay').style.display = 'block';
+      const retryData = await loadAllFromAppsScript();
+      if (retryData) {
+        applyExport(retryData);
+        _cachedPmgData = retryData;
+        _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
+        savePmgCache(retryData, _cachedPmgConsolidado);
+        window._gcClusterMapGlobal = {};
+        document.getElementById('updating-banner').style.display = 'none';
+        document.getElementById('updating-overlay').style.display = 'none';
+        buildTabs(); render();
+        console.log(`✅ Retry ${retryCount} bem-sucedido`);
+        return;
+      }
+      if (retryCount < maxRetries) {
+        setTimeout(doRetry, retryInterval);
+      } else {
+        document.getElementById('updating-banner').style.display = 'none';
+        document.getElementById('updating-overlay').style.display = 'none';
+        console.warn('❌ Todas as tentativas falharam — usuário precisa clicar em Atualizar');
+      }
+    };
+    setTimeout(doRetry, 3000); // primeira tentativa em 3s (dá tempo do warmServerCache aquecer)
+  }
 
   buildTabs(); render();
 
@@ -1414,6 +1583,25 @@ function _render(){
   const vendAtivos = ACTIVE === 'all' ? getGroupVendors() : [ACTIVE];
   const allChannelNomesV1 = CHANNELS.flatMap(ch => getChannelVendors(ch));
 
+  // Constrói mapa GC → cluster a partir da aba CLIENTE_CLUSTER ou fallback PMG
+  {
+    const _map = {};
+    if (Object.keys(CLIENTE_CLUSTER).length > 0) {
+      Object.assign(_map, CLIENTE_CLUSTER);
+    } else {
+      // Fallback: abas PMG (campo CLUSTER)
+      [...new Set([...getFarmerVendors(), ...DEVELOPER_VENDORS, ...HAVA_PMG_VENDORS])].forEach(v => {
+        (DATA[v]||[]).forEach(r => {
+          if (r.client && r.cluster) {
+            const gc = String(r.client).trim().replace(/\.0+$/,'');
+            _map[gc] = r.cluster.toUpperCase().trim();
+          }
+        });
+      });
+    }
+    window._gcClusterMapGlobal = _map;
+  }
+
   const v1Period = VENDAS_V1.filter(r => {
     if (!r.date) return false;
     if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
@@ -1444,9 +1632,14 @@ function _render(){
       return r.date >= cut;
     }
     return true;
+  }).filter(r => {
+    if (!CLUSTER_FILTER) return true;
+    const gc = (r.codGC||'').trim();
+    const gcN = gc.replace(/\.0+$/, ''); const cl = window._gcClusterMapGlobal?.[gcN] || window._gcClusterMapGlobal?.[gc] || 'DEMAIS';
+    const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+    return clKey === CLUSTER_FILTER;
   });
 
-  // VENDA: contagem distinta de COD_GC da vendas_v1 com FAT > 0 no período
   const cntVen  = new Set(v1Period.filter(r => r.fat > 0).map(r => r.codGC).filter(Boolean)).size;
 
   const sc    = {positivado:cntPos, nao_venda:cntNav, em_contato:cntCon, em_carteira:cntCar};
@@ -1569,10 +1762,16 @@ function _render(){
       if (GROUP === 'hava') return getChannelVendors('hava').includes(r.nomeVend) || HAVA_PMG_VENDORS.includes(r.vendor);
       if (GROUP === 'farmer') return getFarmerVendors().includes(r.vendor);
       if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(r.vendor);
-      // GROUP === 'all': inclui TUDO do mês sem filtrar por canal
       return true;
     }
     return true;
+  }).filter(r => {
+    // Filtro de cluster — usa gcClusterMapGlobal construído no render
+    if (!CLUSTER_FILTER) return true;
+    const gc = (r.codGC||'').trim();
+    const gcN = gc.replace(/\.0+$/, ''); const cl = window._gcClusterMapGlobal?.[gcN] || window._gcClusterMapGlobal?.[gc] || 'DEMAIS';
+    const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+    return clKey === CLUSTER_FILTER;
   });
 
   const totValMtd   = v1Filt.reduce((a,r) => a + (r.fat || 0), 0);
@@ -1583,6 +1782,46 @@ function _render(){
   const sumPositMes = positSet.size;
 
   console.log(`📊 MTD: fat=${totValMtd.toFixed(0)} posit=${sumPositMes} linhas=${v1Filt.length}`);
+
+  // Calcula metaByCluster aqui — antes dos KPIs — para que _metaByClusterGlobal esteja correto
+  {
+    const _gcMap = window._gcClusterMapGlobal || {};
+    const _allPmg2 = [...new Set([...getFarmerVendors(), ...DEVELOPER_VENDORS, ...HAVA_PMG_VENDORS])];
+    const _activePmg2 = _allPmg2.filter(v => {
+      if (ACTIVE !== 'all') return v === ACTIVE;
+      if (GROUP === 'farmer')    return getFarmerVendors().includes(v);
+      if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(v);
+      if (GROUP === 'hava')      return HAVA_PMG_VENDORS.includes(v);
+      if (CHANNELS.includes(GROUP)) return false;
+      return true;
+    });
+    const _meta2 = { DIAMANTE:0, OURO:0, DEMAIS:0 };
+    _activePmg2.forEach(v => {
+      const vRaw = (DATA[v]||[]).map(r=>({...r,vendor:v}));
+      const sorted = [...vRaw].sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+      const byGC = {};
+      sorted.forEach(r => {
+        const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+        if (!gc) return;
+        const rDay = r.date ? localDK(r.date) : '';
+        // Usa CLIENTE_CLUSTER (gcClusterMap) para classificar — fallback para campo cluster da aba
+        const clRaw = _gcMap[gc] || (r.cluster||'').toUpperCase().trim() || 'DEMAIS';
+        const clKey = ['DIAMANTE','OURO'].includes(clRaw) ? clRaw : 'DEMAIS';
+        if (!byGC[gc]) byGC[gc] = { day:rDay, total:r.meta||0, cl:clKey };
+        else if (rDay === byGC[gc].day) byGC[gc].total += r.meta||0;
+      });
+      Object.values(byGC).forEach(({cl,total}) => { _meta2[cl] = (_meta2[cl]||0) + total; });
+    });
+    let _metaTotal2 = _activePmg2.reduce((a,v) => a + metaUltimoSalv((DATA[v]||[]).map(r=>({...r,vendor:v}))), 0);
+    if (GROUP === 'all') Object.values(META_OUTROS).forEach(m => { _metaTotal2 += m.metaFat||0; });
+    else if (CHANNELS.includes(GROUP)) {
+      if (GROUP === 'rca') Object.entries(META_OUTROS).forEach(([n,m2]) => { if(isRCA(n)) _metaTotal2 += m2.metaFat||0; });
+      else getChannelVendors(GROUP).forEach(n => { _metaTotal2 += (META_OUTROS[n]||{}).metaFat||0; });
+    }
+    _meta2['DEMAIS'] = Math.max(0, _metaTotal2 - _meta2['DIAMANTE'] - _meta2['OURO']);
+    window._metaByClusterGlobal = _meta2;
+    if (CLUSTER_FILTER) console.log(`🎯 _meta2: D=${_meta2.DIAMANTE} O=${_meta2.OURO} Dem=${_meta2.DEMAIS} total=${_metaTotal2} gcMapSize=${Object.keys(_gcMap).length}`);
+  }
 
   // Meta FAT e Meta Posit: PMG vendors via abas + canais via META_OUTROS
   const vendorsAtivos = vendAtivos.filter(v => (DATA[v]||[]).length > 0);
@@ -1635,7 +1874,12 @@ function _render(){
     }
   }
   const pctPos  = totalMetaPos > 0 ? Math.round((sumPositMes / totalMetaPos) * 100) : null;
-  const ating   = totalMetaFat > 0 ? Math.round((totValMtd   / totalMetaFat)  * 100) : null;
+  // Se cluster filtrado, sobrescreve totalMetaFat com a meta do cluster
+  let totalMetaFatKpi = totalMetaFat;
+  if (CLUSTER_FILTER && window._metaByClusterGlobal) {
+    totalMetaFatKpi = window._metaByClusterGlobal[CLUSTER_FILTER] || 0;
+  }
+  const ating = totalMetaFatKpi > 0 ? Math.round((totValMtd / totalMetaFatKpi) * 100) : null;
 
   // Meta Faturamento — respeita filtro GROUP
   // Determina quais grupos/canais incluir baseado no GROUP ativo
@@ -1693,12 +1937,27 @@ function _render(){
 
   const atingCanais = metaFatCanais > 0 ? Math.round((fatCanaisMtd / metaFatCanais) * 100) : null;
 
-  // ── KPIs linha 1 — respeitam filtro de período
-  const totValPeriod = v1Period.reduce((a,r) => a + (r.fat||0), 0);
+  // Se cluster filtrado, usa meta do cluster
+  // KPI Faturamento usa v1Filt como base — mesma fonte do card MTD
+  const totValPeriod = PERIOD === 'all'
+    ? totValMtd
+    : v1Filt.filter(r => {
+        if (PERIOD === 'hoje') return r.date.getDate() === now2.getDate() && r.date.getMonth() === now2.getMonth() && r.date.getFullYear() === now2.getFullYear();
+        if (PERIOD === 'mtd') return true; // v1Filt já é MTD
+        if (PERIOD === '1') { const ontem = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()-1); return r.date >= ontem && r.date < new Date(now2.getFullYear(), now2.getMonth(), now2.getDate()); }
+        if (PERIOD === 'custom') { if (D_FROM && r.date < D_FROM) return false; if (D_TO && r.date > D_TO) return false; return true; }
+        if (!isNaN(parseInt(PERIOD))) { const cut = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - parseInt(PERIOD) + 1); return r.date >= cut; }
+        return true;
+      }).reduce((a,r) => a + (r.fat||0), 0);
+
+  const metaFatCanaisKpi = (CLUSTER_FILTER && window._metaByClusterGlobal)
+    ? (window._metaByClusterGlobal[CLUSTER_FILTER] || 0)
+    : metaFatCanais;
+  const atingCanaisKpi = metaFatCanaisKpi > 0 ? Math.round((totValPeriod / metaFatCanaisKpi) * 100) : null;
 
   const kpisRow1 = [
     {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', bellId:'kpi-bell-fat'},
-    {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanais), kc:'var(--blue)', ating: atingCanais},
+    {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanaisKpi), kc:'var(--blue)', ating: atingCanaisKpi},
     {ico:'📊', lbl:'Marg. Prod.', sub:'Período · Fat-Imp-Custo', val:margProdStr, kc:'#1a8c4e'},
     {ico:'💼', lbl:'Carteira',         sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
     {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)',  bellId:'kpi-bell-pmg'},
@@ -1707,7 +1966,7 @@ function _render(){
   ];
   // ── KPIs linha MTD — sempre acumulado do mês
   const kpisRow2 = [
-    {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), sub2: totalMetaFat>0?`Meta: ${fBRL(totalMetaFat)}`:'', kc:'var(--blue2)', lg:true, ating},
+    {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), sub2: totalMetaFatKpi>0?`Meta: ${fBRL(totalMetaFatKpi)}`:'', kc:'var(--blue2)', lg:true, ating},
     {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, sub2: totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:pctPos},
   ];
 
@@ -1740,9 +1999,17 @@ function _render(){
     const calcMtd = (pmgVendors, channelNomes) => {
       const rows = VENDAS_V1.filter(r => {
         if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
-        if (channelNomes && channelNomes.includes(r.nomeVend)) return true;
-        if (pmgVendors && pmgVendors.length && pmgVendors.includes(r.vendor)) return true;
-        return false;
+        if (channelNomes && channelNomes.includes(r.nomeVend)) { /* ok */ }
+        else if (pmgVendors && pmgVendors.length && pmgVendors.includes(r.vendor)) { /* ok */ }
+        else return false;
+        // Filtro de cluster
+        if (CLUSTER_FILTER) {
+          const gc = (r.codGC||'').trim();
+          const gcN = gc.replace(/\.0+$/, ''); const cl = window._gcClusterMapGlobal?.[gcN] || window._gcClusterMapGlobal?.[gc] || 'DEMAIS';
+          const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+          if (clKey !== CLUSTER_FILTER) return false;
+        }
+        return true;
       });
       const fat   = rows.reduce((a,r) => a+(r.fat||0), 0);
       const posit = new Set(rows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
@@ -1825,36 +2092,36 @@ function _render(){
               </div>`:''
             }
           </div>` : '';
-        return `<div onclick="setGroup('${grp}')" style="width:364px;flex-shrink:0;background:${bg};border:2px solid ${border};border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};border-radius:12px;padding:10px 26px;cursor:pointer;transition:all .2s;display:flex;flex-direction:row;align-items:stretch;gap:16px;text-align:left;box-shadow:0 4px 16px rgba(26,58,140,.10)">
+        return `<div onclick="setGroup('${grp}')" style="width:291px;flex-shrink:0;background:${bg};border:2px solid ${border};border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};border-radius:12px;padding:${type==='fat'?'3px':'4px'} 26px;cursor:pointer;transition:all .2s;display:flex;flex-direction:row;align-items:stretch;gap:16px;text-align:left;box-shadow:0 4px 16px rgba(26,58,140,.10)">
           <div style="display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1">
-            <div style="font-size:13px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px">${lbl}</div>
-            <div style="font-size:26px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
-              ${type==='fat'&&marg!=null?`<div style="font-size:12px;color:var(--text3);margin-top:3px;font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
+            <div style="font-size:13px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:${type==='fat'?'11px':'9px'}">${lbl}</div>
+            <div style="font-size:${type==='fat'?'25px':'26px'};font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
+              ${type==='fat'&&marg!=null?`<div style="font-size:12px;color:var(--text3);margin-top:4px;font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
             
-            ${(!pmgHava && metaStr)?`<div style="font-size:12px;color:${metaC};margin-top:6px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
+            ${(!pmgHava && metaStr)?`<div style="font-size:12px;color:${metaC};margin-top:${type==='fat'?'8px':'6px'};font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
             ${(!pmgHava && pct!=null)?`
-              <div style="margin-top:15px">
+              <div style="margin-top:${type==='fat'?'19px':'15px'}">
                 <div style="height:4px;background:var(--gray);border-radius:3px;overflow:hidden">
                   <div style="height:100%;width:${Math.min(pct,100)}%;background:${barCol};border-radius:3px;transition:width .8s"></div>
                 </div>
-                <div style="font-size:13px;font-weight:800;color:${pctC};margin-top:6px;font-family:'Montserrat',sans-serif">${pct}% da meta</div>
+                <div style="font-size:13px;font-weight:800;color:${pctC};margin-top:${type==='fat'?'8px':'6px'};font-family:'Montserrat',sans-serif">${pct}% da meta</div>
               </div>`:''
             }
           </div>
           ${rightBlock}
         </div>`;
       }
-      return `<div onclick="setGroup('${grp}')" style="width:240px;flex-shrink:0;background:${bg};border:2px solid ${border};border-radius:10px;border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};padding:8px 14px;cursor:pointer;transition:all .2s;text-align:left;box-shadow:${isActive?'0 2px 8px rgba(26,58,140,.15)':'none'}">
-        <div style="font-size:11px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">${lbl}</div>
+      return `<div onclick="setGroup('${grp}')" style="width:192px;flex-shrink:0;background:${bg};border:2px solid ${border};border-radius:10px;border-top:4px solid ${type==='fat'?'#1a3a8c':'#1a8c4e'};padding:${type==='fat'?'31px':'13px'} 14px;cursor:pointer;transition:all .2s;text-align:left;box-shadow:${isActive?'0 2px 8px rgba(26,58,140,.15)':'none'}">
+        <div style="font-size:11px;font-weight:700;color:${labelC};text-transform:uppercase;letter-spacing:.8px;margin-bottom:${type==='fat'?'5px':'4px'}">${lbl}</div>
         <div style="font-size:20px;font-weight:800;color:${textC};font-family:'Montserrat',sans-serif;line-height:1.1">${valStr}</div>
-        ${type==='fat' && marg!=null?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
-        ${metaStr?`<div style="font-size:11px;color:${metaC};margin-top:2px;font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
+        ${type==='fat' && marg!=null?`<div style="font-size:11px;color:var(--text3);margin-top:${type==='fat'?'3px':'2px'};font-family:'Montserrat',sans-serif">Marg. Prod.: <span style="font-weight:800;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
+        ${metaStr?`<div style="font-size:11px;color:${metaC};margin-top:${type==='fat'?'3px':'2px'};font-family:'Montserrat',sans-serif">Meta: ${metaStr}</div>`:''}
         ${pct!=null?`
-          <div style="margin-top:5px">
+          <div style="margin-top:${type==='fat'?'6px':'5px'}">
             <div style="height:3px;background:var(--gray);border-radius:3px;overflow:hidden">
               <div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px;transition:width .8s"></div>
             </div>
-            <div style="font-size:11px;font-weight:700;color:${pctC};margin-top:3px;font-family:'Montserrat',sans-serif">${pct}% da meta</div>
+            <div style="font-size:11px;font-weight:700;color:${pctC};margin-top:${type==='fat'?'4px':'3px'};font-family:'Montserrat',sans-serif">${pct}% da meta</div>
           </div>`:''
         }
       </div>`;
@@ -1904,9 +2171,12 @@ function _render(){
     const fatRow = document.getElementById('mtd-fat-row');
     const posRow = document.getElementById('mtd-pos-row');
     if (fatRow && posRow) {
-      const avacyFat  = calcAvacy('fat');
-      const avacyPos  = calcAvacy('pos');
-      const avacyMFat = calcAvacyMeta('fat');
+      // avacyFat sempre usa totValMtd — fonte única de verdade para faturamento MTD
+      const avacyFat  = totValMtd;
+      const avacyPos  = sumPositMes;
+      const avacyMFat = CLUSTER_FILTER && window._metaByClusterGlobal
+        ? (window._metaByClusterGlobal[CLUSTER_FILTER] || 0)
+        : calcAvacyMeta('fat');
       const avacyMPos = calcAvacyMeta('pos');
       // Linha 1: FARMER, DEVELOPER, CLOSER | Linha 2: MARTINS, RCA, KA, HAVA
       const lvl1 = subGroups.filter(g => ['farmer','developer','closer'].includes(g.grp));
@@ -1917,7 +2187,7 @@ function _render(){
       const pmgHavaPos  = pmgHavaGroups.reduce((a,g) => a + calcMtd(g.pmg||[],g.ch).posit, 0);
       const pmgHavaMPos = pmgHavaGroups.reduce((a,g) => a + getMeta(g.pmg||[],g.ch,g.grp).mPos, 0);
 
-      const buildRow = (type, avacyVal, avacyMeta) => {
+      const buildRow = (type, avacyVal, avacyMeta, clusterCards='') => {
         // Calcular margem AVACY MTD
         const avacyMarg = type==='fat' ? calcMargProd(VENDAS_V1.filter(r=>r.date&&r.date>=iniMes2&&r.date<=fimMes2)) : null;
         const avacyCard = miniCard('AVACY', avacyVal, avacyMeta, type, 'all', true, type==='pos' ? { posit: pmgHavaPos, meta: pmgHavaMPos } : null, avacyMarg);
@@ -1932,14 +2202,152 @@ function _render(){
           return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false, null, type==='fat'?marg:null);
         }).join('');
         return `${avacyCard}
-          <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
-            <div style="display:flex;gap:8px;justify-content:center">${row1Cards}</div>
-            <div style="display:flex;gap:8px;justify-content:center">${row2Cards}</div>
-          </div>`;
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;text-align:center">🏷️ Canais</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${row1Cards}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${row2Cards}</div>
+          </div>
+          ${clusterCards ? `<div style="display:flex;flex-direction:column;justify-content:center;gap:8px"><div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;text-align:center">💎 Clusters</div>${clusterCards}</div>` : ''}`;
       };
 
-      fatRow.innerHTML = buildRow('fat', avacyFat, avacyMFat);
-      posRow.innerHTML = buildRow('pos', avacyPos, avacyMPos);
+      // ── Clusters — calcula antes do buildRow para passar como parâmetro
+      const CLUSTERS = [
+        { key:'DIAMANTE', lbl:'💎 Diamante', color:'#4a90d9' },
+        { key:'OURO',     lbl:'🥇 Ouro',     color:'#b87a00' },
+        { key:'DEMAIS',   lbl:'🔹 Demais',   color:'#6b7280' },
+      ];
+      const allPmgVendors = [...new Set([...getFarmerVendors(), ...DEVELOPER_VENDORS, ...HAVA_PMG_VENDORS])];
+      // Vendors ativos para meta (respeita GROUP e ACTIVE)
+      const activePmgVendors = allPmgVendors.filter(v => {
+        if (ACTIVE !== 'all') return v === ACTIVE;
+        if (GROUP === 'farmer')    return getFarmerVendors().includes(v);
+        if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(v);
+        if (GROUP === 'hava')      return HAVA_PMG_VENDORS.includes(v);
+        if (CHANNELS.includes(GROUP)) return false; // canais não têm aba PMG
+        return true; // all
+      });
+      // Usa o mesmo mapa já construído no início do render — garantia de consistência
+      const gcClusterMap = window._gcClusterMapGlobal || {};
+      window._gcClusterMapGlobal = gcClusterMap;
+      const metaByCluster = { DIAMANTE:0, OURO:0, DEMAIS:0 };
+      activePmgVendors.forEach(v => {
+        const vRaw = (DATA[v]||[]).map(r=>({...r,vendor:v}));
+        const sorted = [...vRaw].sort((a,b)=>(b.date?.getTime()||0)-(a.date?.getTime()||0));
+        const byGC = {};
+        sorted.forEach(r => {
+          const gc = r.client||''; if (!gc) return;
+          const rDay = r.date ? localDK(r.date) : '';
+          const clKey = ['DIAMANTE','OURO'].includes((r.cluster||'').toUpperCase().trim()) ? (r.cluster||'').toUpperCase().trim() : 'DEMAIS';
+          if (!byGC[gc]) byGC[gc] = { day:rDay, total:r.meta||0, cl:clKey };
+          else if (rDay === byGC[gc].day) byGC[gc].total += r.meta||0;
+        });
+        Object.values(byGC).forEach(({cl,total}) => { metaByCluster[cl] = (metaByCluster[cl]||0) + total; });
+      });
+      // DEMAIS = meta total do grupo ativo - DIAMANTE - OURO
+      const metaTotalAtivo = (() => {
+        let m = activePmgVendors.reduce((a,v) => {
+          return a + metaUltimoSalv((DATA[v]||[]).map(r=>({...r,vendor:v})));
+        }, 0);
+        // Canais via META_OUTROS
+        if (GROUP === 'all') {
+          // Todos os canais
+          Object.entries(META_OUTROS).forEach(([n,m2]) => { m += m2.metaFat||0; });
+        } else if (CHANNELS.includes(GROUP)) {
+          // Canal específico
+          if (GROUP === 'rca') {
+            Object.entries(META_OUTROS).forEach(([n,m2]) => { if(isRCA(n)) m += m2.metaFat||0; });
+          } else {
+            getChannelVendors(GROUP).forEach(n => { m += (META_OUTROS[n]||{}).metaFat||0; });
+          }
+        }
+        return m;
+      })();
+      metaByCluster['DEMAIS'] = Math.max(0, metaTotalAtivo - metaByCluster['DIAMANTE'] - metaByCluster['OURO']);
+      window._metaByClusterGlobal = metaByCluster; // expõe para KPI meta
+
+      // Fat/custo/imp por cluster — usa VENDAS_V1 do mês SEM filtro de cluster
+      // (v1Filt já está filtrado quando CLUSTER_FILTER ativo — usaria só o cluster selecionado)
+      const fatByCluster   = { DIAMANTE:0, OURO:0, DEMAIS:0 };
+      const custoByCluster = { DIAMANTE:0, OURO:0, DEMAIS:0 };
+      const impByCluster   = { DIAMANTE:0, OURO:0, DEMAIS:0 };
+      const positByCluster = { DIAMANTE: new Set(), OURO: new Set(), DEMAIS: new Set() };
+      // Base: v1Filt sem filtro de cluster (aplica só GROUP/ACTIVE/período)
+      const v1FiltNoCluster = VENDAS_V1.filter(r => {
+        if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
+        if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
+        if (ACTIVE === 'all') {
+          if (CHANNELS.includes(GROUP)) return getChannelVendors(GROUP).includes(r.nomeVend);
+          if (GROUP === 'hava') return getChannelVendors('hava').includes(r.nomeVend) || HAVA_PMG_VENDORS.includes(r.vendor);
+          if (GROUP === 'farmer') return getFarmerVendors().includes(r.vendor);
+          if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(r.vendor);
+          return true;
+        }
+        return true;
+      });
+      // FAT/CUSTO/IMPOSTO: soma TODAS as linhas (incl. devoluções/fat<=0)
+      // — mesma base do totValMtd para garantir que a soma dos clusters bate com o KPI MTD
+      v1FiltNoCluster.forEach(r => {
+        const gc = String(r.codGC||'').trim().replace(/\.0+$/,'');
+        // Usa _gcClusterMapGlobal — mesma fonte do v1Filt para consistência
+        const gcMap = window._gcClusterMapGlobal || gcClusterMap;
+        const cl = gcMap[gc] || 'DEMAIS';
+        const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+        fatByCluster[clKey]   = (fatByCluster[clKey]  ||0) + (r.fat||0);
+        custoByCluster[clKey] = (custoByCluster[clKey]||0) + (r.custo||0);
+        impByCluster[clKey]   = (impByCluster[clKey]  ||0) + (r.imposto||0);
+      });
+      // POSITIVAÇÃO: só conta clientes com fat > 0 (lógica antiga preservada)
+      v1FiltNoCluster.filter(r => r.fat > 0).forEach(r => {
+        const gc = String(r.codGC||'').trim().replace(/\.0+$/,'');
+        const gcMap = window._gcClusterMapGlobal || gcClusterMap;
+        const cl = gcMap[gc] || 'DEMAIS';
+        const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+        if (gc) positByCluster[clKey].add(r.codClienteLoja || gc);
+      });
+      if (!CLUSTER_FILTER) console.log(`💎 fatByCluster | D=${fatByCluster.DIAMANTE.toFixed(0)} O=${fatByCluster.OURO.toFixed(0)} Dem=${fatByCluster.DEMAIS.toFixed(0)} soma=${(fatByCluster.DIAMANTE+fatByCluster.OURO+fatByCluster.DEMAIS).toFixed(0)} | totValMtd=${totValMtd}`);
+      // Se cluster filtrado, o valor do cluster ativo = totValMtd (fonte única de verdade)
+      if (CLUSTER_FILTER && fatByCluster[CLUSTER_FILTER] !== undefined) {
+        fatByCluster[CLUSTER_FILTER] = totValMtd;
+      }
+      const margByCluster = {};
+      ['DIAMANTE','OURO','DEMAIS'].forEach(k => {
+        const base = fatByCluster[k] - impByCluster[k];
+        margByCluster[k] = base > 0 ? (1 - custoByCluster[k] / base) * 100 : null;
+      });
+
+      // Cards de positivação por cluster (mesmo estilo miniCard mas sem meta/%)
+      const clusterPosCardsHtml = CLUSTERS.map(({key, lbl, color}) => {
+        const posit = positByCluster[key].size;
+        const isActive = CLUSTER_FILTER === key;
+        const bg = isActive ? '#e8eef9' : 'var(--white)';
+        const borderExtra = isActive ? 'border:2px solid #1a3a8c;' : 'border:2px solid var(--gray2);';
+        return `<div onclick="setCluster('${key}')" style="width:192px;flex-shrink:0;background:${bg};${borderExtra}border-radius:10px;border-top:4px solid ${color};padding:12px 14px;text-align:left;cursor:pointer;transition:all .2s">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">${lbl}</div>
+          <div style="font-size:20px;font-weight:800;color:var(--text);font-family:'Montserrat',sans-serif">${posit}</div>
+        </div>`;
+      }).join('');
+
+      // Cards de faturamento por cluster
+      const clusterFatCardsHtml = CLUSTERS.map(({key, lbl, color}) => {
+        const fat  = fatByCluster[key]  || 0;
+        const meta = metaByCluster[key] || 0;
+        const marg = margByCluster[key];
+        const pct  = meta > 0 ? Math.round((fat/meta)*100) : null;
+        const col  = pct==null?'#888':pct>=100?'#1a8c4e':pct>=70?'#b87a00':'#cc1a1a';
+        const isActive = CLUSTER_FILTER === key;
+        const bg = isActive ? '#e8eef9' : 'var(--white)';
+        const borderExtra = isActive ? `border:2px solid #1a3a8c;` : 'border:2px solid var(--gray2);';
+        return `<div onclick="setCluster('${key}')" style="width:192px;flex-shrink:0;background:${bg};${borderExtra}border-radius:10px;border-top:4px solid ${color};padding:8px 14px;text-align:left;cursor:pointer;transition:all .2s">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">${lbl}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text);font-family:'Montserrat',sans-serif">${fBRL(fat)}</div>
+          ${marg!=null?`<div style="font-size:11px;color:var(--text3);margin-top:1px">Marg. Prod.: <span style="font-weight:700;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
+          ${meta>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">Meta: ${fBRL(meta)}</div>`:''}
+          ${pct!=null?`<div style="margin-top:5px"><div style="height:3px;background:var(--gray);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px;transition:width .8s"></div></div><div style="font-size:11px;font-weight:700;color:${col};margin-top:2px;font-family:'Montserrat',sans-serif">${pct}% da meta</div></div>`:''}
+        </div>`;
+      }).join('');
+
+      fatRow.innerHTML = buildRow('fat', avacyFat, avacyMFat, clusterFatCardsHtml);
+      posRow.innerHTML = buildRow('pos', avacyPos, avacyMPos, clusterPosCardsHtml);
     }
   }
 
@@ -2644,6 +3052,24 @@ function setGroup(g){
     if (el) el.classList.toggle('active', id === g);
   });
   buildTabs(); render();
+}
+function setClusterChip(key) {
+  CLUSTER_FILTER = key;
+  ['all','diamante','ouro','demais'].forEach(id => {
+    const el = document.getElementById('cchip-' + id);
+    if (el) el.classList.toggle('active', id === (key ? key.toLowerCase() : 'all'));
+  });
+  render();
+}
+function setCluster(key) {
+  // Toggle: clica de novo no mesmo → deseleciona
+  CLUSTER_FILTER = CLUSTER_FILTER === key ? null : key;
+  // Sincroniza chips da barra
+  ['all','diamante','ouro','demais'].forEach(id => {
+    const el = document.getElementById('cchip-' + id);
+    if (el) el.classList.toggle('active', id === (CLUSTER_FILTER ? CLUSTER_FILTER.toLowerCase() : 'all'));
+  });
+  render();
 }
 function swV(v){
   // Toggle: clica de novo no mesmo → deseleciona
