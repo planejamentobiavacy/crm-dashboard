@@ -192,11 +192,6 @@ tbody td:first-child{font-weight:700;color:var(--text)}
         <span class="upd" id="upd-v1" style="display:none"></span>
       </div>
       <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
-      <span id="kpi-bell-fat" onclick="saveSettAndLoad()" title="Faturamento atualizado — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:11px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 Venda</span>
-      <button id="btn-bell" onclick="saveSettAndLoad()" style="display:none;position:relative;background:#1a3a8c;border:none;color:#fff;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;animation:bellPulse 1.5s ease-in-out infinite" title="Novo salvamento no PMG — clique para atualizar">
-        🔔 <span id="bell-label" style="font-size:11px;font-weight:700;vertical-align:middle">PMG</span>
-        <span style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;background:#ff4444;border-radius:50%;border:2px solid var(--blue)"></span>
-      </button>
     </div>
   </div>
 </div>
@@ -503,8 +498,8 @@ let _alertFat = false;
 let _alertPmg = false;
 
 function showBell(label) {
-  // Label fixo "PMG" — não sobrescreve
-  document.getElementById('btn-bell').style.display = '';
+  // Sininhos específicos ficam em seus KPIs (Faturamento / Contato)
+  // O btn-bell genérico foi substituído pelos sininhos específicos
   if (label === 'novo fat') { _alertFat = true; updateAlertBells(); }
   if (label === 'novo pmg') { _alertPmg = true; updateAlertBells(); }
 }
@@ -515,7 +510,6 @@ function clearBell() {
   _lastPmgMaxDate = getPmgMaxDate();
   _alertFat = false;
   _alertPmg = false;
-  document.getElementById('btn-bell').style.display = 'none';
   updateAlertBells();
 }
 
@@ -549,7 +543,7 @@ async function checkUpdates() {
         const execChanged = _lastV1ExecDate && newExec.getTime() > 0 && newExec > _lastV1ExecDate;
         const fatChanged  = _lastV1MaxDate  && newFat.getTime()  > 0 && newFat  > _lastV1MaxDate;
         console.log(`🔔 checkUpdates: newExec=${localDK(newExec)} lastExec=${_lastV1ExecDate?localDK(_lastV1ExecDate):'null'} execChanged=${execChanged} | newFat=${localDK(newFat)} lastFat=${_lastV1MaxDate?localDK(_lastV1MaxDate):'null'} fatChanged=${fatChanged}`);
-        if (execChanged || fatChanged) { showBell('novo fat'); return; }
+        if (execChanged || fatChanged) { showBell('novo fat'); }
       }
     }
   } catch(e) {}
@@ -575,7 +569,7 @@ async function checkUpdates() {
           if (d > newMax) newMax = d;
         });
         if (_lastPmgMaxDate && newMax.getTime() > 0 && newMax > _lastPmgMaxDate) {
-          showBell('novo pmg'); return;
+          showBell('novo pmg');
         }
       }
     }
@@ -1150,7 +1144,6 @@ loadPmgCache(); // Carrega imediatamente ao iniciar
 async function loadData(){
   const btn = document.getElementById('btn-ref');
   btn.classList.add('ld');
-  document.getElementById('btn-bell').style.display = 'none';
   setLoad(); hideErr();
   DATA = {};
   _alertFat = false; _alertPmg = false;
@@ -1531,6 +1524,18 @@ function _render(){
   const allRaw = ACTIVE==='all'
     ? getGroupVendors().flatMap(v => getRaw(v))
     : getRaw(ACTIVE);
+
+  // ── Mapa global codGC → clientName — usa TODAS as abas PMG carregadas (não só as filtradas)
+  // Permite enriquecer tabela de canais (CLOSER/MARTINS/RCA/KA) com nome do cliente
+  if (!window._gcNameMapGlobal) window._gcNameMapGlobal = {};
+  C.sh.forEach(v => {
+    (DATA[v]||[]).forEach(r => {
+      const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+      if (gc && r.clientName && !window._gcNameMapGlobal[gc]) {
+        window._gcNameMapGlobal[gc] = r.clientName;
+      }
+    });
+  });
 
   // ── Deduplica por (vendor + cliente) mantendo data mais recente — para KPIs de contagem
   const dd   = dedup(allRaw);
@@ -1970,13 +1975,23 @@ function _render(){
     {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, sub2: totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:pctPos},
   ];
 
-  const kpiHtml = (k) => `
+  const kpiHtml = (k) => {
+    // Label do sininho conforme o tipo
+    const bellLabels = { 'kpi-bell-fat': '🔔 Venda', 'kpi-bell-pmg': '🔔 PMG' };
+    const bellTitles = {
+      'kpi-bell-fat': 'Novo salvamento na vendas_v1 — clique para atualizar',
+      'kpi-bell-pmg': 'Novo salvamento no PMG — clique para atualizar'
+    };
+    const bellHtml = k.bellId && bellLabels[k.bellId]
+      ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="${bellTitles[k.bellId]}" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">${bellLabels[k.bellId]}</span>`
+      : '';
+    return `
     <div class="kpi" style="--kc:${k.kc}">
       <div class="kpi-bar"></div>
       <div class="kpi-ico">${k.ico}</div>
       <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
         ${k.lbl}
-        ${k.bellId === 'kpi-bell-pmg' ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="Novo salvamento no PMG — clique para atualizar" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">🔔 PMG</span>` : ''}
+        ${bellHtml}
       </div>
       <div class="kpi-val${k.lg?' lg':k.sm?' sm':''}">${k.val}</div>
       ${k.sub ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${k.sub}</div>` : ''}
@@ -1989,6 +2004,7 @@ function _render(){
           <div style="font-size:13px;font-weight:700;color:var(--text3);margin-top:4px;font-family:'Roboto Mono',monospace">${k.ating}% da meta</div>
         </div>` : ''}
     </div>`;
+  };
 
   // ── Renderiza MTD bar — 2 linhas: Fat MTD e Posit MTD por canal
   const mtdBar = document.getElementById('mtd-bar');
@@ -2475,21 +2491,62 @@ function _render(){
     const gc = (r.codGC||'').trim();
     if (gc) v1PeriodMap[gc] = (v1PeriodMap[gc]||0) + (r.fat||0);
   });
-  const rawForTable = dedupGlobal(fltPeriod(allRaw))
-    .filter(r => {
-      // Aplica filtro de cluster usando o mesmo mapa global (mesma fonte da vendas_v1)
-      if (!CLUSTER_FILTER) return true;
-      const gc = String(r.client||'').trim().replace(/\.0+$/,'');
-      const gcMap = window._gcClusterMapGlobal || {};
-      const cl = gcMap[gc] || 'DEMAIS';
-      const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
-      return clKey === CLUSTER_FILTER;
-    })
-    .sort((a,b) => {
-      const fatA = v1PeriodMap[(a.client||'').trim()] || 0;
-      const fatB = v1PeriodMap[(b.client||'').trim()] || 0;
-      return fatB - fatA;
+  // Se GROUP é um canal (CLOSER/MARTINS/RCA/KA/HAVA) e vendedor = all, allRaw fica vazio
+  // (esses canais não têm abas PMG). Nesse caso, construímos linhas a partir da vendas_v1
+  // para preencher a tabela de Detalhamento de Clientes.
+  const isCanalSemPMG = ACTIVE === 'all' && CHANNELS.includes(GROUP) && GROUP !== 'hava';
+  let rawForTable;
+  if (isCanalSemPMG) {
+    // Agrega v1Period por codGC: 1 linha por cliente, guardando vendedor dominante (maior fat)
+    const gcNameMap = window._gcNameMapGlobal || {};
+    const byGC = new Map();
+    v1Period.forEach(r => {
+      const gc = String(r.codGC||'').trim().replace(/\.0+$/,'');
+      if (!gc) return;
+      const cur = byGC.get(gc);
+      if (!cur) {
+        byGC.set(gc, { client: gc, clientName: gcNameMap[gc] || '', vendor: r.nomeVend || r.vendor, nomeVend: r.nomeVend,
+                       value: r.fat||0, fat: r.fat||0, date: r.date,
+                       meta:0, metaPos:0, positMes:0, diasVenda:'', carteira:'', contato:'', motivo:'', cluster:'' });
+      } else {
+        cur.value += (r.fat||0);
+        cur.fat   += (r.fat||0);
+        if (r.date && (!cur.date || r.date > cur.date)) cur.date = r.date;
+        // Mantém o vendedor com maior contribuição (evita trocar a cada linha)
+        if ((r.fat||0) > 0 && (!cur._maxFat || (r.fat||0) > cur._maxFat)) {
+          cur._maxFat = r.fat;
+          cur.vendor = r.nomeVend || r.vendor;
+          cur.nomeVend = r.nomeVend;
+        }
+      }
     });
+    rawForTable = Array.from(byGC.values())
+      .filter(r => {
+        if (!CLUSTER_FILTER) return true;
+        const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+        const gcMap = window._gcClusterMapGlobal || {};
+        const cl = gcMap[gc] || 'DEMAIS';
+        const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+        return clKey === CLUSTER_FILTER;
+      })
+      .sort((a,b) => (b.fat||0) - (a.fat||0));
+  } else {
+    rawForTable = dedupGlobal(fltPeriod(allRaw))
+      .filter(r => {
+        // Aplica filtro de cluster usando o mesmo mapa global (mesma fonte da vendas_v1)
+        if (!CLUSTER_FILTER) return true;
+        const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+        const gcMap = window._gcClusterMapGlobal || {};
+        const cl = gcMap[gc] || 'DEMAIS';
+        const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+        return clKey === CLUSTER_FILTER;
+      })
+      .sort((a,b) => {
+        const fatA = v1PeriodMap[(a.client||'').trim()] || 0;
+        const fatB = v1PeriodMap[(b.client||'').trim()] || 0;
+        return fatB - fatA;
+      });
+  }
 
   mc.innerHTML+=`
   <div class="tbl-card">
@@ -2512,7 +2569,7 @@ function _render(){
           <th onclick="sortTbl('client')" style="cursor:pointer;user-select:none">Cliente <span id="sort-client"></span></th>
           ${ACTIVE==='all'?'<th onclick="sortTbl(\'vendor\')" style="cursor:pointer;user-select:none">Vendedor <span id="sort-vendor"></span></th>':''}
           <th onclick="sortTbl('status')" style="cursor:pointer;user-select:none">Etapa <span id="sort-status"></span></th>
-          <th onclick="sortTbl('fat')" style="cursor:pointer;user-select:none">Fat. Mês <span id="sort-fat"></span></th>
+          <th onclick="sortTbl('fat')" style="cursor:pointer;user-select:none">Faturamento <span id="sort-fat"></span></th>
           <th onclick="sortTbl('marg')" style="cursor:pointer;user-select:none">Marg. Prod. <span id="sort-marg"></span></th>
           <th>Carteira</th>
           <th>Não Venda</th>
