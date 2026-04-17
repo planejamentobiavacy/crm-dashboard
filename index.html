@@ -2476,6 +2476,15 @@ function _render(){
     if (gc) v1PeriodMap[gc] = (v1PeriodMap[gc]||0) + (r.fat||0);
   });
   const rawForTable = dedupGlobal(fltPeriod(allRaw))
+    .filter(r => {
+      // Aplica filtro de cluster usando o mesmo mapa global (mesma fonte da vendas_v1)
+      if (!CLUSTER_FILTER) return true;
+      const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+      const gcMap = window._gcClusterMapGlobal || {};
+      const cl = gcMap[gc] || 'DEMAIS';
+      const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+      return clKey === CLUSTER_FILTER;
+    })
     .sort((a,b) => {
       const fatA = v1PeriodMap[(a.client||'').trim()] || 0;
       const fatB = v1PeriodMap[(b.client||'').trim()] || 0;
