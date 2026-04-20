@@ -362,11 +362,22 @@ let VENDAS_V1 = []; // dados brutos da aba vendas_v1
 let META_OUTROS = {}; // { NOME_VENDEDOR: { metaFat, metaPos, canal } }
 let CONSOLIDADO_DATAS = {}; // { VENDEDOR: 'DD/MM/YYYY HH:MM' } — última data de salvamento
 
+// Helper: fetch com cache-busting via query string + cache:'no-store' do navegador.
+// NÃO usa headers customizados para evitar preflight CORS (que o Apps Script não responde corretamente).
+function fetchNoCache(url, opts = {}) {
+  const sep = url.includes('?') ? '&' : '?';
+  const urlNoCache = `${url}${sep}_nc=${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return fetch(urlNoCache, {
+    ...opts,
+    cache: 'no-store'
+  });
+}
+
 async function loadConsolidado() {
   try {
     const url = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
     const c = new AbortController(); setTimeout(() => c.abort(), 15000);
-    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
     if (!r.ok) return;
     const data = await r.json();
     if (!data?.rows?.length) return;
@@ -420,7 +431,7 @@ async function loadMetaOutros() {
   try {
     const url = `${APPS_SCRIPT_URL}?sheet=META_OUTROS&t=${Date.now()}`;
     const c = new AbortController(); setTimeout(() => c.abort(), 15000);
-    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
     if (!r.ok) return;
     const data = await r.json();
     if (!data?.rows?.length) return;
@@ -445,7 +456,7 @@ async function loadClienteCluster() {
   try {
     const url = `${APPS_SCRIPT_URL}?sheet=CLIENTE_CLUSTER&t=${Date.now()}`;
     const c = new AbortController(); setTimeout(() => c.abort(), 10000);
-    const r = await fetch(url, { redirect:'follow', signal: c.signal });
+    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
     if (!r.ok) return;
     const txt = await r.text();
     if (!txt || txt.trim().startsWith('<')) return;
@@ -528,7 +539,7 @@ async function checkUpdates() {
     // Verifica vendas_v1
     const url1 = `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`;
     const c1 = new AbortController(); setTimeout(() => c1.abort(), 15000);
-    const r1 = await fetch(url1, { redirect:'follow', signal: c1.signal });
+    const r1 = await fetchNoCache(url1, { redirect:'follow', signal: c1.signal });
     if (r1.ok) {
       const d1 = await r1.json();
       if (d1?.rows?.length) {
@@ -571,7 +582,7 @@ async function checkUpdates() {
     // Verifica PMG via CONSOLIDADO — compara data máxima de salvamento dos vendedores
     const url2 = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
     const c2 = new AbortController(); setTimeout(() => c2.abort(), 15000);
-    const r2 = await fetch(url2, { redirect:'follow', signal: c2.signal });
+    const r2 = await fetchNoCache(url2, { redirect:'follow', signal: c2.signal });
     if (r2.ok) {
       const d2 = await r2.json();
       if (d2?.rows?.length) {
@@ -596,8 +607,10 @@ async function checkUpdates() {
   } catch(e) { console.warn('checkUpdates pmg erro:', e.message); }
 }
 
-// Verifica a cada 3 minutos
-setInterval(checkUpdates, 3 * 60 * 1000);
+// Verifica a cada 90 segundos (mais responsivo para detectar atualizações)
+setInterval(checkUpdates, 90 * 1000);
+// Expõe helper para debug manual no console: checkNow()
+window.checkNow = () => { console.log('🔎 checkNow: disparando checkUpdates manualmente...'); return checkUpdates(); };
 let _rows = [];
 let _v1PeriodMap = {}; // mapa GC → fat do período (para filtro de etapa)
 
@@ -692,13 +705,12 @@ let _asIdx = 0;
 
 // Carrega TODOS os vendedores via cache (rápido) ou ao vivo (fallback)
 async function loadAllFromAppsScript() {
-  // Tenta exportCached primeiro (rápido se cache ativo), depois exportFresh como fallback
   const tryFetch = async (action, timeoutMs) => {
     const url = `${APPS_SCRIPT_URL}?action=${action}&t=${Date.now()}`;
     const c = new AbortController();
     const tid = setTimeout(() => c.abort(), timeoutMs);
     try {
-      const r = await fetch(url, { redirect: 'follow', signal: c.signal });
+      const r = await fetchNoCache(url, { redirect: 'follow', signal: c.signal });
       clearTimeout(tid);
       if (!r.ok) return null;
       const data = JSON.parse(await r.text());
@@ -709,52 +721,42 @@ async function loadAllFromAppsScript() {
       return null;
     }
   };
-
-  // 1ª tentativa: exportCached — timeout ampliado p/ cobrir cold start do Apps Script
-  let data = await tryFetch('exportCached', 20000);
-  if (data) {
+  const filterAndReturn = (data, tag) => {
     const filtered = {};
     Object.keys(data.vendedores).forEach(nome => {
       if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
     });
-    const src = data._fromCache ? '⚡ cache' : '🔄 ao vivo';
-    console.log(`✅ Export (${src}): ${Object.keys(filtered).length} vendedores`);
-    if (data._fromCache) setTimeout(() => warmServerCache(), 500);
+    console.log(`✅ Export (${tag}): ${Object.keys(filtered).length} vendedores`);
     return filtered;
+  };
+
+  // Estratégia: dispara exportCached e exportFresh EM PARALELO, pega o que responder primeiro
+  // exportCached é rápido se cache ativo; exportFresh é o fallback real
+  const tStart = Date.now();
+  const cachedPromise = tryFetch('exportCached', 12000);
+  const freshPromise  = tryFetch('exportFresh',  60000);
+
+  // Aguarda o primeiro que retornar dados válidos
+  const winner = await Promise.any([
+    cachedPromise.then(d => d || Promise.reject('cached empty')),
+    freshPromise.then(d  => d || Promise.reject('fresh empty'))
+  ]).catch(() => null);
+
+  if (winner) {
+    const elapsed = Date.now() - tStart;
+    const src = winner._fromCache ? `⚡ cache (${elapsed}ms)` : `🔄 ao vivo (${elapsed}ms)`;
+    if (winner._fromCache) setTimeout(() => warmServerCache(), 500);
+    return filterAndReturn(winner, src);
   }
 
-  // 2ª tentativa: exportCached de novo (cold start do Apps Script pode ter demorado)
-  console.warn('⚠️ exportCached 1ª tentativa falhou — retry...');
-  data = await tryFetch('exportCached', 20000);
-  if (data) {
-    const filtered = {};
-    Object.keys(data.vendedores).forEach(nome => {
-      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-    });
-    console.log(`✅ Export (retry cached): ${Object.keys(filtered).length} vendedores`);
-    return filtered;
-  }
-
-  // 3ª tentativa: exportFresh com timeout de 60s
-  console.warn('⚠️ exportCached não respondeu, tentando exportFresh...');
-  data = await tryFetch('exportFresh', 60000);
-  if (data) {
-    const filtered = {};
-    Object.keys(data.vendedores).forEach(nome => {
-      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-    });
-    console.log(`✅ Export (fresh): ${Object.keys(filtered).length} vendedores`);
-    return filtered;
-  }
-
-  console.warn('❌ Export falhou em todas as tentativas');
+  console.warn('❌ Export falhou em ambas as chamadas paralelas');
   return null;
 }
 
 // Aquece o cache no servidor em background (sem bloquear a UI)
 async function warmServerCache() {
   try {
-    await fetch(`${APPS_SCRIPT_URL}?action=exportFresh&t=${Date.now()}`, {
+    await fetchNoCache(`${APPS_SCRIPT_URL}?action=exportFresh&t=${Date.now()}`, {
       redirect: 'follow',
       signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 45000); return c.signal; })()
     });
@@ -766,18 +768,29 @@ async function warmServerCache() {
 
 // Carrega aba vendas_v1 para Faturamento e Positivado MTD
 async function loadVendasV1() {
-  try {
-    // Usa action=vendas_v1 (compatível com o Apps Script original)
-    const url = `${APPS_SCRIPT_URL}?action=vendas_v1&t=${Date.now()}`;
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 15000);
-    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal });
-    if (!r.ok) { console.warn('❌ vendas_v1: status não ok'); return; }
-    const txt = await r.text();
-    let data;
-    try { data = JSON.parse(txt); } catch(e) { console.warn('❌ vendas_v1: JSON inválido', e.message); return; }
+  // Tenta 2 rotas: ?sheet=vendas_v1 (geralmente fresh) primeiro, depois ?action=vendas_v1 (cached, mas compatível)
+  const tryUrls = [
+    `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`,
+    `${APPS_SCRIPT_URL}?action=vendas_v1&t=${Date.now()}`
+  ];
+  let data = null;
+  for (const url of tryUrls) {
+    try {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 15000);
+      const r = await fetchNoCache(url, { redirect: 'follow', signal: ctrl.signal });
+      if (!r.ok) { console.warn(`❌ vendas_v1 (${url.includes('sheet=')?'sheet':'action'}): status não ok`); continue; }
+      const txt = await r.text();
+      try { data = JSON.parse(txt); } catch(e) { console.warn(`❌ vendas_v1: JSON inválido`, e.message); continue; }
+      if (data && data.rows && data.rows.length) {
+        console.log(`✅ vendas_v1 carregou via ${url.includes('sheet=')?'sheet':'action'}: ${data.rows.length} rows`);
+        break;
+      }
+    } catch(e) { console.warn(`❌ vendas_v1 fetch falhou:`, e.message); }
+  }
+  if (!data || !data.rows || !data.rows.length) { console.warn('❌ vendas_v1: todas as rotas falharam'); return; }
 
-    if (!data || !data.rows || !data.rows.length) { console.warn('❌ vendas_v1: sem rows'); return; }
+  try {
 
     // Log dos campos disponíveis para diagnóstico
     const availableKeys = Object.keys(data.rows[0] || {});
@@ -1287,11 +1300,11 @@ async function loadData(){
     window._gcClusterMapGlobal = {};
   } else {
     console.warn('Export falhou — iniciando retry automático em background');
-    // Retry automático: 3 tentativas com 15s de intervalo — cobre cold start + aquecimento
+    // Retry automático: 3 tentativas com 5s de intervalo — cobre falha transitória
     const updStatusRetry = document.getElementById('updating-status');
     let retryCount = 0;
     const maxRetries = 3;
-    const retryInterval = 15000;
+    const retryInterval = 5000;
     const doRetry = async () => {
       retryCount++;
       console.log(`🔁 Retry PMG ${retryCount}/${maxRetries}...`);
@@ -1319,7 +1332,7 @@ async function loadData(){
         console.warn('❌ Todas as tentativas falharam — usuário precisa clicar em Atualizar');
       }
     };
-    setTimeout(doRetry, 3000); // primeira tentativa em 3s (dá tempo do warmServerCache aquecer)
+    setTimeout(doRetry, 1000); // primeira tentativa em 1s
   }
 
   buildTabs(); render();
