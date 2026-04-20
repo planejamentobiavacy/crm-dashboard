@@ -90,6 +90,7 @@ main{padding:26px 36px;max-width:1600px;margin:0 auto;min-width:0}
 .kpi-lbl{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:7px}
 .kpi-val{font-family:'Montserrat',sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px}
 .kpi-val.sm{font-size:15px}.kpi-val.lg{font-family:'Montserrat',sans-serif;font-size:24px;font-weight:800}.kpi-sub{font-size:9px;color:var(--text3);font-weight:500}
+.hdr-bell{display:inline-flex;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap;box-shadow:0 2px 8px rgba(26,58,140,.45);border:none}
 
 /* ── SECTION TITLE ── */
 .stitle{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -191,6 +192,8 @@ tbody td:first-child{font-weight:700;color:var(--text)}
         <span class="upd" id="upd">—</span>
         <span class="upd" id="upd-v1" style="display:none"></span>
       </div>
+      <span id="hdr-bell-fat" class="hdr-bell" onclick="saveSettAndLoad()" title="Novo salvamento na vendas_v1 — clique para atualizar" style="display:none">🔔 Venda</span>
+      <span id="hdr-bell-pmg" class="hdr-bell" onclick="saveSettAndLoad()" title="Novo salvamento no PMG — clique para atualizar" style="display:none">🔔 PMG</span>
       <button class="btn btn-w" id="btn-ref" onclick="saveSettAndLoad()">↻ Atualizar</button>
     </div>
   </div>
@@ -498,8 +501,6 @@ let _alertFat = false;
 let _alertPmg = false;
 
 function showBell(label) {
-  // Sininhos específicos ficam em seus KPIs (Faturamento / Contato)
-  // O btn-bell genérico foi substituído pelos sininhos específicos
   if (label === 'novo fat') { _alertFat = true; updateAlertBells(); }
   if (label === 'novo pmg') { _alertPmg = true; updateAlertBells(); }
 }
@@ -514,10 +515,10 @@ function clearBell() {
 }
 
 function updateAlertBells() {
-  const fatBell = document.getElementById('kpi-bell-fat');
-  const pmgBell = document.getElementById('kpi-bell-pmg');
-  if (fatBell) fatBell.style.display = _alertFat ? 'inline-flex' : 'none';
-  if (pmgBell) pmgBell.style.display = _alertPmg ? 'inline-flex' : 'none';
+  const hdrFat = document.getElementById('hdr-bell-fat');
+  const hdrPmg = document.getElementById('hdr-bell-pmg');
+  if (hdrFat) hdrFat.style.display = _alertFat ? '' : 'none';
+  if (hdrPmg) hdrPmg.style.display = _alertPmg ? '' : 'none';
 }
 
 async function checkUpdates() {
@@ -531,22 +532,41 @@ async function checkUpdates() {
     if (r1.ok) {
       const d1 = await r1.json();
       if (d1?.rows?.length) {
-        // Compara DT_EXECUCAO (mais confiável — muda quando a base é reprocessada)
+        // Detecta nomes das colunas do mesmo jeito que loadVendasV1 (case-insensitive, variantes)
+        const findKey = (row, ...candidates) => {
+          const keys = Object.keys(row);
+          for (const c of candidates) {
+            const found = keys.find(k => k.trim().toUpperCase() === c.toUpperCase());
+            if (found) return found;
+          }
+          return null;
+        };
+        const sample = d1.rows[0];
+        const kExecChk = findKey(sample, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
+        const kDataChk = findKey(sample, 'DATA_FAT', 'DATA FAT', 'DATA', 'DATA ENVIO', 'DATA_FAT.');
+        // Compara DT_EXECUCAO com hora — muda a cada reprocessamento no servidor
         let newExec = new Date(0);
         let newFat  = new Date(0);
         d1.rows.forEach(row => {
-          const dExec = pDate(row['DT_EXECUCAO'] || row['DT_EXEC'] || '');
-          if (dExec && dExec > newExec) newExec = dExec;
-          const dFat = pDate(row['DATA_FAT'] || '');
-          if (dFat && dFat > newFat) newFat = dFat;
+          if (kExecChk) {
+            const dExec = pDate(row[kExecChk] || '');
+            if (dExec && dExec > newExec) newExec = dExec;
+          }
+          if (kDataChk) {
+            const dFat = pDate(row[kDataChk] || '');
+            if (dFat && dFat > newFat) newFat = dFat;
+          }
         });
-        const execChanged = _lastV1ExecDate && newExec.getTime() > 0 && newExec > _lastV1ExecDate;
-        const fatChanged  = _lastV1MaxDate  && newFat.getTime()  > 0 && newFat  > _lastV1MaxDate;
-        console.log(`🔔 checkUpdates: newExec=${localDK(newExec)} lastExec=${_lastV1ExecDate?localDK(_lastV1ExecDate):'null'} execChanged=${execChanged} | newFat=${localDK(newFat)} lastFat=${_lastV1MaxDate?localDK(_lastV1MaxDate):'null'} fatChanged=${fatChanged}`);
+        // execChanged: compara com hora (DT_EXECUCAO tem precisão de segundos)
+        const execChanged = _lastV1ExecDate && _lastV1ExecDate.getTime() > 0 && newExec.getTime() > 0 && newExec.getTime() > _lastV1ExecDate.getTime();
+        // fatChanged: compara só o dia (DATA_FAT geralmente não tem hora)
+        const fatChanged  = _lastV1MaxDate  && _lastV1MaxDate.getTime() > 0  && newFat.getTime()  > 0 && newFat.getTime()  > _lastV1MaxDate.getTime();
+        const fmt = d => d && d.getTime() > 0 ? `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR')}` : 'null';
+        console.log(`🔔 checkUpdates fat: kExec=${kExecChk} kData=${kDataChk} | newExec=${fmt(newExec)} lastExec=${fmt(_lastV1ExecDate)} execChanged=${execChanged} | newFat=${fmt(newFat)} lastFat=${fmt(_lastV1MaxDate)} fatChanged=${fatChanged}`);
         if (execChanged || fatChanged) { showBell('novo fat'); }
       }
     }
-  } catch(e) {}
+  } catch(e) { console.warn('checkUpdates fat erro:', e.message); }
   try {
     // Verifica PMG via CONSOLIDADO — compara data máxima de salvamento dos vendedores
     const url2 = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
@@ -573,7 +593,7 @@ async function checkUpdates() {
         }
       }
     }
-  } catch(e) {}
+  } catch(e) { console.warn('checkUpdates pmg erro:', e.message); }
 }
 
 // Verifica a cada 3 minutos
@@ -785,6 +805,21 @@ async function loadVendasV1() {
     const kExec = findKey(sampleRow, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
     const pNum  = s => parseFloat((s||'').replace(/[^\d,.-]/g,'').replace(',','.')) || 0;
 
+    // Captura máximos RAW (antes de filtrar r.date) — usado como baseline do checkUpdates
+    // Isso garante que o baseline use a MESMA fonte que o check (todas as rows retornadas)
+    let _rawMaxExec = new Date(0);
+    let _rawMaxFat  = new Date(0);
+    data.rows.forEach(row => {
+      if (kExec) {
+        const d = pDate(row[kExec] || '');
+        if (d && d > _rawMaxExec) _rawMaxExec = d;
+      }
+      if (kData) {
+        const d = pDate(row[kData] || '');
+        if (d && d > _rawMaxFat) _rawMaxFat = d;
+      }
+    });
+
     VENDAS_V1 = data.rows.map(row => {
       const nomeVend = kNome ? (row[kNome] || '').trim().replace(/\s+/g,' ').toUpperCase() : '';
       const vendor   = VENDOR_MAP[nomeVend] || nomeVend;
@@ -800,8 +835,10 @@ async function loadVendasV1() {
     }).filter(r => r.nomeVend && r.date);
 
     console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas`);
-    _lastV1MaxDate  = getV1MaxDate();
-    _lastV1ExecDate = getV1MaxExecDate();
+    // Usa os máximos RAW (antes do filtro) como baseline — mesma fonte do checkUpdates
+    _lastV1MaxDate  = _rawMaxFat.getTime()  > 0 ? _rawMaxFat  : getV1MaxDate();
+    _lastV1ExecDate = _rawMaxExec.getTime() > 0 ? _rawMaxExec : getV1MaxExecDate();
+    console.log(`🔖 Baseline v1: maxFat=${_lastV1MaxDate.toLocaleString('pt-BR')} maxExec=${_lastV1ExecDate.toLocaleString('pt-BR')}`);
     _lastPmgMaxDate = getPmgMaxDate();
     // Atualiza label "Venda atualizada até" — usa DT_EXECUCAO (data/hora da última execução)
     const execMax = VENDAS_V1.reduce((max, r) => {
@@ -1961,11 +1998,11 @@ function _render(){
   const atingCanaisKpi = metaFatCanaisKpi > 0 ? Math.round((totValPeriod / metaFatCanaisKpi) * 100) : null;
 
   const kpisRow1 = [
-    {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)', bellId:'kpi-bell-fat'},
+    {ico:'💰', lbl:'Faturamento',      sub:'Período',          val:fBRL(totValPeriod), kc:'var(--blue2)'},
     {ico:'🎯', lbl:'Meta Faturamento', sub:'', val:fBRL(metaFatCanaisKpi), kc:'var(--blue)', ating: atingCanaisKpi},
     {ico:'📊', lbl:'Marg. Prod.', sub:'Período · Fat-Imp-Custo', val:margProdStr, kc:'#1a8c4e'},
     {ico:'💼', lbl:'Carteira',         sub:'Grupos Comerciais', val:cntCar,             kc:'var(--g-car)'},
-    {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)',  bellId:'kpi-bell-pmg'},
+    {ico:'📞', lbl:'Contato',          sub:'Grupos Comerciais', val:cntCon,             kc:'var(--blue)'},
     {ico:'🛒', lbl:'Venda',            sub:'Grupos Comerciais', val:cntVen,             kc:'var(--g-pos)'},
     {ico:'❌', lbl:'Não Venda',        sub:'Grupos Comerciais', val:cntNav,             kc:'var(--red)'},
   ];
@@ -1975,24 +2012,11 @@ function _render(){
     {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, sub2: totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:pctPos},
   ];
 
-  const kpiHtml = (k) => {
-    // Label do sininho conforme o tipo
-    const bellLabels = { 'kpi-bell-fat': '🔔 Venda', 'kpi-bell-pmg': '🔔 PMG' };
-    const bellTitles = {
-      'kpi-bell-fat': 'Novo salvamento na vendas_v1 — clique para atualizar',
-      'kpi-bell-pmg': 'Novo salvamento no PMG — clique para atualizar'
-    };
-    const bellHtml = k.bellId && bellLabels[k.bellId]
-      ? `<span id="${k.bellId}" onclick="saveSettAndLoad()" title="${bellTitles[k.bellId]}" style="display:none;align-items:center;gap:4px;background:#1a3a8c;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;cursor:pointer;animation:bellPulse 1.5s ease-in-out infinite;white-space:nowrap">${bellLabels[k.bellId]}</span>`
-      : '';
-    return `
+  const kpiHtml = (k) => `
     <div class="kpi" style="--kc:${k.kc}">
       <div class="kpi-bar"></div>
       <div class="kpi-ico">${k.ico}</div>
-      <div class="kpi-lbl" style="display:flex;align-items:center;gap:6px">
-        ${k.lbl}
-        ${bellHtml}
-      </div>
+      <div class="kpi-lbl">${k.lbl}</div>
       <div class="kpi-val${k.lg?' lg':k.sm?' sm':''}">${k.val}</div>
       ${k.sub ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${k.sub}</div>` : ''}
       ${k.sub2 ? `<div style="font-size:13px;color:var(--text3);margin-top:3px;font-family:'Roboto Mono',monospace">${k.sub2}</div>` : ''}
@@ -2004,7 +2028,6 @@ function _render(){
           <div style="font-size:13px;font-weight:700;color:var(--text3);margin-top:4px;font-family:'Roboto Mono',monospace">${k.ating}% da meta</div>
         </div>` : ''}
     </div>`;
-  };
 
   // ── Renderiza MTD bar — 2 linhas: Fat MTD e Posit MTD por canal
   const mtdBar = document.getElementById('mtd-bar');
