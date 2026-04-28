@@ -482,6 +482,50 @@ async function loadClienteCluster() {
   }
 }
 
+// Mapa { 'NOME VENDEDOR (UPPERCASE)' → 'canal_lowercase' }
+// Populado por loadVendCanal a partir da aba VEND_CANAL do Sheets
+let VEND_CANAL_MAP = {};
+
+async function loadVendCanal() {
+  try {
+    const url = `${APPS_SCRIPT_URL}?sheet=VEND_CANAL&t=${Date.now()}`;
+    const c = new AbortController(); setTimeout(() => c.abort(), 10000);
+    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
+    if (!r.ok) { console.warn('❌ VEND_CANAL: status não ok'); return; }
+    const txt = await r.text();
+    if (!txt || txt.trim().startsWith('<')) { console.warn('❌ VEND_CANAL: HTML em vez de JSON'); return; }
+    const data = JSON.parse(txt);
+    if (!data?.rows?.length) { console.warn('❌ VEND_CANAL: sem rows'); return; }
+
+    const row0 = data.rows[0];
+    const keys = Object.keys(row0);
+    // Detecta colunas (case/espaço-insensitive). Aba: VENDEDOR, ABA, CANAL
+    const findKey = (...candidates) => {
+      for (const c of candidates) {
+        const k = keys.find(x => x.trim().toUpperCase() === c.toUpperCase());
+        if (k) return k;
+      }
+      return null;
+    };
+    const kVend  = findKey('VENDEDOR','NOME','NOME_VENDEDOR','NOME VENDEDOR');
+    const kCanal = findKey('CANAL');
+    if (!kVend || !kCanal) {
+      console.warn(`❌ VEND_CANAL: colunas não encontradas | keys=${keys.join(', ')}`);
+      return;
+    }
+
+    VEND_CANAL_MAP = {};
+    data.rows.forEach(row => {
+      const vend  = String(row[kVend]||'').trim().toUpperCase();
+      const canal = String(row[kCanal]||'').trim().toLowerCase();
+      if (vend && canal) VEND_CANAL_MAP[vend] = canal;
+    });
+    console.log(`✅ VEND_CANAL: ${Object.keys(VEND_CANAL_MAP).length} vendedores mapeados`);
+  } catch(e) {
+    console.warn('❌ VEND_CANAL falhou:', e.message);
+  }
+}
+
 let D_FROM = null, D_TO = null, CH = null;
 let _lastV1MaxDate  = null;   // última data máxima da vendas_v1 (DATA_FAT)
 let _lastV1ExecDate = null;   // última DT_EXECUCAO da vendas_v1
@@ -620,15 +664,26 @@ const getFarmerVendors  = () => C.sh.filter(v => !DEVELOPER_VENDORS.includes(v) 
 
 // ── Canais — vendedores da vendas_v1 que não têm aba PMG
 // Mapeados pelo NOME_VENDEDOR da vendas_v1
+// Fallback hardcoded (usado se VEND_CANAL não carregar). Mantido por segurança.
 const CHANNEL_DEFS = {
-  closer:  ['GIOVANA RENATA TABORDA','JULIA DE PAULA','KAROLINE DA SILVA JESUS','CASSIA APOLINARIO','JOÃO RACHID','VINICIUS QUEIROZ','JOSE VINICIUS','VINICIUS SANTOS PEREIRA'],
+  closer:  ['GIOVANA RENATA TABORDA','JULIA DE PAULA','KAROLINE DA SILVA JESUS','CASSIA APOLINARIO','JOÃO RACHID','VINICIUS QUEIROZ','VINICIUS SANTOS PEREIRA'],
   martins: ['MARTINS'],
-  ka:      ['RUBIA PAOLETTI','GABRIELLA DIAS'],
+  ka:      ['RUBIA PAOLETTI','GABRIELLA DIAS','JOSE VINICIUS'],
   hava:    ['SAMARA FERNANDES','GIULLIANO MIOR','HAVA'],
   // RCA: todos que iniciam com "RCA - "
 };
 const isRCA = (name) => (name||'').toUpperCase().startsWith('RCA');
+
+// Retorna lista de vendedores do canal. Prioriza VEND_CANAL_MAP (Sheets); cai em CHANNEL_DEFS se vazio.
 const getChannelVendors = (ch) => {
+  // 1) Tenta VEND_CANAL_MAP (fonte de verdade)
+  if (Object.keys(VEND_CANAL_MAP).length > 0) {
+    const fromSheet = Object.entries(VEND_CANAL_MAP)
+      .filter(([_, canal]) => canal === ch)
+      .map(([nome]) => nome);
+    if (fromSheet.length > 0 || ch !== 'rca') return fromSheet;
+  }
+  // 2) Fallback para hardcoded
   if (ch === 'rca') return [...new Set(VENDAS_V1.map(r => r.nomeVend).filter(isRCA))];
   return CHANNEL_DEFS[ch] || [];
 };
@@ -1208,16 +1263,17 @@ async function loadData(){
   const promiseMeta = loadMetaOutros();
   const promiseCons = loadConsolidado();
   const promiseCC   = loadClienteCluster();
+  const promiseVC   = loadVendCanal();
 
   // Mostra banner de atualização imediatamente
   document.getElementById('updating-banner').style.display = 'block';
   document.getElementById('updating-overlay').style.display = 'block';
   const setStatus = (txt) => { const el = document.getElementById('updating-status'); if(el) el.textContent = txt; };
 
-  // Fase 1: aguarda vendas_v1 + META_OUTROS + CONSOLIDADO
+  // Fase 1: aguarda vendas_v1 + META_OUTROS + CONSOLIDADO + CLIENTE_CLUSTER + VEND_CANAL
   setStatus('Carregando faturamento e metas…');
-  await Promise.all([promiseV1, promiseMeta, promiseCons, promiseCC]);
-  console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length}`);
+  await Promise.all([promiseV1, promiseMeta, promiseCons, promiseCC, promiseVC]);
+  console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length} canais=${Object.keys(VEND_CANAL_MAP).length}`);
 
   btn.classList.remove('ld');
   const now0a = new Date();
