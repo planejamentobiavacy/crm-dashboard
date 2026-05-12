@@ -210,6 +210,8 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div class="fl"><label>Col. Carteira</label><input id="s-ca" value="CARTEIRA"></div>
     <div class="fl"><label>Col. Dias Contato</label><input id="s-co" value="DIAS CONTATO"></div>
     <div class="fl"><label>Col. Não Venda</label><input id="s-mo" value="NÃO VENDA"></div>
+    <div class="fl"><label>Supabase URL</label><input id="s-sb-url" value="https://svqxupjtqgzziedgmxaq.supabase.co"></div>
+    <div class="fl"><label>Supabase Anon Key</label><input id="s-sb-key" type="password" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2cXh1cGp0cWd6emllZGdteGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDQzMTEsImV4cCI6MjA5MjYyMDMxMX0.dhaZF6l2XxnKtc6SFflJW0PSG6rGz-doZ2G7evKOglo"></div>
   </div>
   <div style="margin-top:20px;border-top:1px solid var(--gray);padding-top:16px">
     <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Vendedores — Última Atualização</div>
@@ -292,6 +294,11 @@ tbody td:first-child{font-weight:700;color:var(--text)}
     <div style="font-size:10px;color:var(--text3);margin-top:5px">PMG do cache anterior será mantido</div>
   </div>
 </div>
+<!-- Banner discreto canto inferior direito (não bloqueia) -->
+<div id="bg-loading" style="display:none;position:fixed;bottom:18px;right:18px;z-index:997;background:var(--white);border-radius:10px;padding:10px 16px;box-shadow:0 4px 16px rgba(26,58,140,.18);border:1px solid var(--gray);display:none;align-items:center;gap:10px;font-size:12px;color:var(--text);font-weight:600">
+  <div style="width:14px;height:14px;border:2px solid var(--gray);border-top-color:var(--blue);border-radius:50%;animation:sp .75s linear infinite"></div>
+  <span id="bg-loading-text">Carregando carteiras…</span>
+</div>
 <div id="updating-overlay" style="display:none;position:fixed;inset:0;z-index:998;background:rgba(244,246,251,.55);backdrop-filter:blur(2px)"></div>
 
 <!-- MAIN -->
@@ -373,158 +380,98 @@ function fetchNoCache(url, opts = {}) {
   });
 }
 
-async function loadConsolidado() {
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
-    const c = new AbortController(); setTimeout(() => c.abort(), 15000);
-    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (!data?.rows?.length) return;
-
-    const map = {}; // vendedor → { dateObj, dateStr }
-    const pad = n => String(n).padStart(2,'0');
-    const today = new Date();
-    // Aceita apenas datas até fim do mês atual + 1 (evita MM/DD invertidos como 04/10 → outubro)
-    const maxReasonable = new Date(today.getFullYear(), today.getMonth() + 1, 28);
-
-    data.rows.forEach(row => {
-      const vendedor  = (row['VENDEDOR'] || '').trim().toUpperCase();
-      const dataEnvio = (row['DATA ENVIO'] || '').trim();
-      if (!vendedor || !dataEnvio) return;
-
-      let parsed = pDate(dataEnvio);
-      if (!parsed) return;
-
-      if (parsed > maxReasonable) {
-        const m = dataEnvio.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-        if (m) {
-          const inverted = pDate(`${m[2]}/${m[1]}/${m[3]}${dataEnvio.slice(m[0].length)}`);
-          if (inverted && inverted <= maxReasonable) parsed = inverted;
-          else return;
-        } else return;
-      }
-
-      if (!map[vendedor] || parsed > map[vendedor].dateObj) {
-        const str = `${pad(parsed.getDate())}/${pad(parsed.getMonth()+1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
-        map[vendedor] = { dateObj: parsed, dateStr: str };
-      }
-    });
-
-    CONSOLIDADO_DATAS = {};
-    Object.entries(map).forEach(([v, obj]) => {
-      // Salva pela chave original
-      CONSOLIDADO_DATAS[v] = obj.dateStr;
-      // Salva também pelo nome abreviado (via VENDOR_MAP) para lookup nos cards
-      const abrev = VENDOR_MAP[v];
-      if (abrev) CONSOLIDADO_DATAS[abrev] = obj.dateStr;
-    });
-    console.log(`✅ CONSOLIDADO: ${Object.keys(CONSOLIDADO_DATAS).length} entradas`);
-    console.log(`🔍 CONSOLIDADO keys:`, Object.keys(CONSOLIDADO_DATAS).join(', '));
-    console.log(`🔍 CONSOLIDADO['ADRIANO']=`, CONSOLIDADO_DATAS['ADRIANO']);
-  } catch(e) {
-    console.warn('❌ CONSOLIDADO falhou:', e.message);
-  }
+async function loadConsolidado(){
+  var cfg=getSbConfig();if(!cfg.ok)return;
+  try{var rows=await sbFetchAll('consolidado');if(!rows.length)return;var map={},pad=function(n){return String(n).padStart(2,'0');},mxR=new Date(new Date().getFullYear(),new Date().getMonth()+1,28);for(var i=0;i<rows.length;i++){var r=rows[i],vd=sbGet(r,'vendedor','VENDEDOR').toUpperCase(),de=sbGet(r,'data_envio','DATA ENVIO','data envio');if(!vd||!de)continue;var p=parseSupaDate(de);if(!p||p>mxR)continue;if(!map[vd]||p>map[vd].d){var s=pad(p.getDate())+'/'+pad(p.getMonth()+1)+'/'+p.getFullYear()+' '+pad(p.getHours())+':'+pad(p.getMinutes());map[vd]={d:p,s:s};}}CONSOLIDADO_DATAS={};var ks=Object.keys(map);for(var i=0;i<ks.length;i++){CONSOLIDADO_DATAS[ks[i]]=map[ks[i]].s;var ab=VENDOR_MAP[ks[i]];if(ab)CONSOLIDADO_DATAS[ab]=map[ks[i]].s;}console.log('consolidado:',Object.keys(CONSOLIDADO_DATAS).length);}catch(e){console.warn('consolidado:',e.message);}
 }
 
-async function loadMetaOutros() {
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=META_OUTROS&t=${Date.now()}`;
-    const c = new AbortController(); setTimeout(() => c.abort(), 15000);
-    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (!data?.rows?.length) return;
-    META_OUTROS = {};
-    data.rows.forEach(row => {
-      const nome = (row['VENDEDOR'] || '').trim().toUpperCase();
-      if (!nome) return;
-      const metaFat  = parseFloat((row['META FAT']  ||'0').replace(/[^\d,.]/g,'').replace(',','.')) || 0;
-      const metaPos  = parseFloat((row['META POSIT'] ||'0').replace(/[^\d,.]/g,'').replace(',','.')) || 0;
-      const canal    = (row['CANAL'] || '').trim().toLowerCase();
-      META_OUTROS[nome] = { metaFat, metaPos, canal };
-    });
-    console.log(`✅ META_OUTROS: ${Object.keys(META_OUTROS).length} vendedores`);
-  } catch(e) {
-    console.warn('❌ META_OUTROS falhou:', e.message);
-  }
+
+async function loadMetaOutros(){
+  var cfg=getSbConfig();if(!cfg.ok)return;
+  try{
+    var rows=await sbFetchAll('meta_outros');
+    META_OUTROS={};
+    var _havaPmg=typeof HAVA_PMG_VENDORS!=='undefined'?HAVA_PMG_VENDORS:['SAMARA'];
+    window._sbHavaPmgMeta=window._sbHavaPmgMeta||{};
+
+    // Log diagnóstico do primeiro registro raw
+    if(rows.length>0) console.log('🎯 meta_outros row[0] raw:',JSON.stringify(rows[0]));
+    else console.log('🎯 meta_outros: VAZIO');
+
+    var pN=function(s){return parseFloat((s||'0').toString().replace(/[^\d,.]/g,'').replace(',','.'))||0;};
+
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      var nome=sbGet(r,'vendedor','VENDEDOR').toUpperCase();
+      if(!nome)continue;
+      var canal=sbGet(r,'canal','CANAL').toLowerCase();
+      var metaFat=pN(sbGet(r,'meta_fat','META FAT','meta fat'));
+      var metaPos=pN(sbGet(r,'meta_posit','META POSIT','meta posit'));
+
+      // Tenta pegar nome_aba — funciona se coluna existir no banco
+      var nomeAba='';
+      try{ nomeAba=(r['nome_aba']||r['NOME_ABA']||'').toString().trim().toUpperCase(); }catch(ex){}
+
+      // Fallback: usa VENDOR_MAP se nome_aba veio vazio
+      if(!nomeAba && typeof VENDOR_MAP!=='undefined' && VENDOR_MAP[nome]){
+        nomeAba=VENDOR_MAP[nome];
+      }
+
+      var entry={metaFat:metaFat, metaPos:metaPos, canal:canal, nomeAba:nomeAba};
+
+      // Indexa pelo nome completo
+      META_OUTROS[nome]=entry;
+
+      // Indexa pelo nomeAba (ex: ADRIANO) para lookup direto no render
+      if(nomeAba && !META_OUTROS[nomeAba]){
+        META_OUTROS[nomeAba]=entry;
+      }
+
+      // HAVA PMG: backup + zera para evitar dupla contagem
+      var isHavaPmg=nomeAba && _havaPmg.indexOf(nomeAba)>=0;
+      if(isHavaPmg && metaFat>0){
+        window._sbHavaPmgMeta[nome]=metaFat;
+        window._sbHavaPmgMeta[nomeAba]=metaFat;
+        var zeroed={metaFat:0,metaPos:0,canal:canal,nomeAba:nomeAba};
+        META_OUTROS[nome]=zeroed;
+        META_OUTROS[nomeAba]=zeroed;
+        console.log('🎯 HAVA PMG zeroed:',nome,'backup:',metaFat);
+      }
+    }
+
+    // Diagnóstico
+    console.log('🎯 meta_outros total:',Object.keys(META_OUTROS).length,'chaves');
+    var _fv=['ADRIANO','DENIS','LUCAS','MATHEUS','WESLEY','MARCELO','DOUGLAS','NOA','DEBORAH','JOYCE','RAFAEL','AUGUSTO','THAIS','ALEX','ROSANE'];
+    var _fm=_fv.map(function(v){return v+':'+(META_OUTROS[v]?META_OUTROS[v].metaFat:'??');});
+    console.log('🎯 farmer metas:',_fm.join(' | '));
+    var _totalFarmer=_fv.reduce(function(a,v){return a+(META_OUTROS[v]?META_OUTROS[v].metaFat:0);},0);
+    console.log('🎯 farmer meta total:',_totalFarmer,'(esperado: 11240000)');
+
+  }catch(e){console.warn('meta_outros erro:',e.message,e.stack);}
 }
+
 
 let CLIENTE_CLUSTER = {}; // { GC: 'DIAMANTE'|'OURO'|'DEMAIS' }
 
-async function loadClienteCluster() {
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=CLIENTE_CLUSTER&t=${Date.now()}`;
-    const c = new AbortController(); setTimeout(() => c.abort(), 10000);
-    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
-    if (!r.ok) return;
-    const txt = await r.text();
-    if (!txt || txt.trim().startsWith('<')) return;
-    const data = JSON.parse(txt);
-    if (!data?.rows?.length) return;
-    const row0 = data.rows[0];
-    const keys = Object.keys(row0);
-    const gcKey = keys.find(k => k.toUpperCase().replace(/\s+/g,'_') === 'GRUPO_COMERCIAL')
-               || keys.find(k => k.toUpperCase().includes('GRUPO'))
-               || keys[0];
-    const clKey = keys.find(k => k.toUpperCase() === 'CLUSTER')
-               || keys.find(k => k.toUpperCase().includes('CLUSTER'))
-               || keys[1];
-    CLIENTE_CLUSTER = {};
-    data.rows.forEach(row => {
-      const gc = String(row[gcKey]||'').trim().replace(/\.0+$/, '');
-      const cl = (row[clKey]||'').trim().toUpperCase();
-      if (gc && cl) CLIENTE_CLUSTER[gc] = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
-    });
-    console.log(`✅ CLIENTE_CLUSTER: ${Object.keys(CLIENTE_CLUSTER).length} GCs`);
-  } catch(e) {
-    console.warn('❌ CLIENTE_CLUSTER falhou:', e.message);
-  }
+async function loadClienteCluster(){
+  var cfg=getSbConfig();if(!cfg.ok)return;
+  try{var rows=await sbFetchAll('cliente_cluster');CLIENTE_CLUSTER={};for(var i=0;i<rows.length;i++){var r=rows[i],gc=String(sbGet(r,'cod_gc','COD_GC','grupo_comercial','GRUPO_COMERCIAL','GRUPO COMERCIAL','gc')).trim().replace(/\.0+$/,''),cl=sbGet(r,'cluster','CLUSTER').toUpperCase().trim();if(gc&&cl)CLIENTE_CLUSTER[gc]=(cl==='DIAMANTE'||cl==='OURO')?cl:'DEMAIS';}console.log('cliente_cluster:',Object.keys(CLIENTE_CLUSTER).length);}catch(e){console.warn('cliente_cluster:',e.message);}
 }
+
 
 // Mapa { 'NOME VENDEDOR (UPPERCASE)' → 'canal_lowercase' }
 // Populado por loadVendCanal a partir da aba VEND_CANAL do Sheets
 let VEND_CANAL_MAP = {};
 
-async function loadVendCanal() {
-  try {
-    const url = `${APPS_SCRIPT_URL}?sheet=VEND_CANAL&t=${Date.now()}`;
-    const c = new AbortController(); setTimeout(() => c.abort(), 10000);
-    const r = await fetchNoCache(url, { redirect:'follow', signal: c.signal });
-    if (!r.ok) { console.warn('❌ VEND_CANAL: status não ok'); return; }
-    const txt = await r.text();
-    if (!txt || txt.trim().startsWith('<')) { console.warn('❌ VEND_CANAL: HTML em vez de JSON'); return; }
-    const data = JSON.parse(txt);
-    if (!data?.rows?.length) { console.warn('❌ VEND_CANAL: sem rows'); return; }
-
-    const row0 = data.rows[0];
-    const keys = Object.keys(row0);
-    // Detecta colunas (case/espaço-insensitive). Aba: VENDEDOR, ABA, CANAL
-    const findKey = (...candidates) => {
-      for (const c of candidates) {
-        const k = keys.find(x => x.trim().toUpperCase() === c.toUpperCase());
-        if (k) return k;
-      }
-      return null;
-    };
-    const kVend  = findKey('VENDEDOR','NOME','NOME_VENDEDOR','NOME VENDEDOR');
-    const kCanal = findKey('CANAL');
-    if (!kVend || !kCanal) {
-      console.warn(`❌ VEND_CANAL: colunas não encontradas | keys=${keys.join(', ')}`);
-      return;
+async function loadVendCanal(){
+  var cfg=getSbConfig();if(!cfg.ok)return;
+  try{var rows=await sbFetchAll('vend_canal');VEND_CANAL_MAP={};for(var i=0;i<rows.length;i++){var r=rows[i],v=sbGet(r,'vendedor','VENDEDOR','nome','NOME').toUpperCase(),c=sbGet(r,'canal','CANAL').toLowerCase();if(v&&c)VEND_CANAL_MAP[v]=c;}console.log('vend_canal:',Object.keys(VEND_CANAL_MAP).length);
+    if(typeof HAVA_PMG_VENDORS!=='undefined'){
+      HAVA_PMG_VENDORS.forEach(function(v){VEND_CANAL_MAP[v]='hava';});
     }
-
-    VEND_CANAL_MAP = {};
-    data.rows.forEach(row => {
-      const vend  = String(row[kVend]||'').trim().toUpperCase();
-      const canal = String(row[kCanal]||'').trim().toLowerCase();
-      if (vend && canal) VEND_CANAL_MAP[vend] = canal;
-    });
-    console.log(`✅ VEND_CANAL: ${Object.keys(VEND_CANAL_MAP).length} vendedores mapeados`);
-  } catch(e) {
-    console.warn('❌ VEND_CANAL falhou:', e.message);
-  }
+  }catch(e){console.warn('vend_canal:',e.message);}
 }
+
 
 let D_FROM = null, D_TO = null, CH = null;
 let _lastV1MaxDate  = null;   // última data máxima da vendas_v1 (DATA_FAT)
@@ -576,80 +523,12 @@ function updateAlertBells() {
   if (hdrPmg) hdrPmg.style.display = _alertPmg ? '' : 'none';
 }
 
-async function checkUpdates() {
-  // Só verifica se já tem dados carregados
-  if (!_lastV1MaxDate && !_lastPmgMaxDate) return;
-  try {
-    // Verifica vendas_v1
-    const url1 = `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`;
-    const c1 = new AbortController(); setTimeout(() => c1.abort(), 15000);
-    const r1 = await fetchNoCache(url1, { redirect:'follow', signal: c1.signal });
-    if (r1.ok) {
-      const d1 = await r1.json();
-      if (d1?.rows?.length) {
-        // Detecta nomes das colunas do mesmo jeito que loadVendasV1 (case-insensitive, variantes)
-        const findKey = (row, ...candidates) => {
-          const keys = Object.keys(row);
-          for (const c of candidates) {
-            const found = keys.find(k => k.trim().toUpperCase() === c.toUpperCase());
-            if (found) return found;
-          }
-          return null;
-        };
-        const sample = d1.rows[0];
-        const kExecChk = findKey(sample, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
-        const kDataChk = findKey(sample, 'DATA_FAT', 'DATA FAT', 'DATA', 'DATA ENVIO', 'DATA_FAT.');
-        // Compara DT_EXECUCAO com hora — muda a cada reprocessamento no servidor
-        let newExec = new Date(0);
-        let newFat  = new Date(0);
-        d1.rows.forEach(row => {
-          if (kExecChk) {
-            const dExec = pDate(row[kExecChk] || '');
-            if (dExec && dExec > newExec) newExec = dExec;
-          }
-          if (kDataChk) {
-            const dFat = pDate(row[kDataChk] || '');
-            if (dFat && dFat > newFat) newFat = dFat;
-          }
-        });
-        // execChanged: compara com hora (DT_EXECUCAO tem precisão de segundos)
-        const execChanged = _lastV1ExecDate && _lastV1ExecDate.getTime() > 0 && newExec.getTime() > 0 && newExec.getTime() > _lastV1ExecDate.getTime();
-        // fatChanged: compara só o dia (DATA_FAT geralmente não tem hora)
-        const fatChanged  = _lastV1MaxDate  && _lastV1MaxDate.getTime() > 0  && newFat.getTime()  > 0 && newFat.getTime()  > _lastV1MaxDate.getTime();
-        const fmt = d => d && d.getTime() > 0 ? `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR')}` : 'null';
-        console.log(`🔔 checkUpdates fat: kExec=${kExecChk} kData=${kDataChk} | newExec=${fmt(newExec)} lastExec=${fmt(_lastV1ExecDate)} execChanged=${execChanged} | newFat=${fmt(newFat)} lastFat=${fmt(_lastV1MaxDate)} fatChanged=${fatChanged}`);
-        if (execChanged || fatChanged) { showBell('novo fat'); }
-      }
-    }
-  } catch(e) { console.warn('checkUpdates fat erro:', e.message); }
-  try {
-    // Verifica PMG via CONSOLIDADO — compara data máxima de salvamento dos vendedores
-    const url2 = `${APPS_SCRIPT_URL}?sheet=CONSOLIDADO&t=${Date.now()}`;
-    const c2 = new AbortController(); setTimeout(() => c2.abort(), 15000);
-    const r2 = await fetchNoCache(url2, { redirect:'follow', signal: c2.signal });
-    if (r2.ok) {
-      const d2 = await r2.json();
-      if (d2?.rows?.length) {
-        let newMax = new Date(0);
-        const maxReasonable = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 28);
-        d2.rows.forEach(row => {
-          const dataEnvio = (row['DATA ENVIO'] || '').trim();
-          if (!dataEnvio) return;
-          let d = pDate(dataEnvio);
-          if (!d) return;
-          if (d > maxReasonable) {
-            const m = dataEnvio.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-            if (m) { const inv = pDate(`${m[2]}/${m[1]}/${m[3]}${dataEnvio.slice(m[0].length)}`); if (inv && inv <= maxReasonable) d = inv; else return; } else return;
-          }
-          if (d > newMax) newMax = d;
-        });
-        if (_lastPmgMaxDate && newMax.getTime() > 0 && newMax > _lastPmgMaxDate) {
-          showBell('novo pmg');
-        }
-      }
-    }
-  } catch(e) { console.warn('checkUpdates pmg erro:', e.message); }
+async function checkUpdates(){
+  if(!_lastV1MaxDate&&!_lastPmgMaxDate)return;var cfg=getSbConfig();if(!cfg.ok)return;var u=cfg.url,k=cfg.key,h={'apikey':k,'Authorization':'Bearer '+k};
+  try{var r1=await fetch(u+'/rest/v1/vendas_v1?select=data_fat,dt_execucao&order=data_fat.desc&limit=1',{headers:h});if(r1.ok){var d1=await r1.json();if(d1&&d1.length){var nF=parseSupaDate(d1[0].data_fat),nE=parseSupaDate(d1[0].dt_execucao);if((_lastV1MaxDate&&nF&&nF>_lastV1MaxDate)||(_lastV1ExecDate&&nE&&nE>_lastV1ExecDate))showBell('novo fat');}}}catch(e){}
+  try{var r2=await fetch(u+'/rest/v1/consolidado?select=data_envio&order=data_envio.desc&limit=1',{headers:h});if(r2.ok){var d2=await r2.json();if(d2&&d2.length){var nM=parseSupaDate(d2[0].data_envio);if(_lastPmgMaxDate&&nM&&nM>_lastPmgMaxDate)showBell('novo pmg');}}}catch(e){}
 }
+
 
 // Verifica a cada 90 segundos (mais responsivo para detectar atualizações)
 setInterval(checkUpdates, 90 * 1000);
@@ -757,173 +636,246 @@ let _cbIdx = 0;
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzdXi5KGvDjWl09RMUDr1KixpMZFFcmYGcmUXqDTn-hutNpkS-7Dp8K_GuUNAxOClOt/exec';
 let _asIdx = 0;
+// SUPABASE
+function getSbConfig(){var e1=document.getElementById('s-sb-url'),e2=document.getElementById('s-sb-key');var url=(e1?e1.value:'').trim().replace(/\/$/,''),key=(e2?e2.value:'').trim();return{url:url,key:key,ok:!!(url&&key)};}
+async function sbFetchAll(table,select,batch,extraFilter){
+  select=select||'*';batch=batch||1000;
+  var cfg=getSbConfig();if(!cfg.ok)throw new Error('nao configurado');
+  var all=[],start=0;
+  var baseQS='?select='+select+(extraFilter?'&'+extraFilter:'');
+  while(true){
+    var end=start+batch-1;
+    var r=await fetch(cfg.url+'/rest/v1/'+table+baseQS,
+      {headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,
+        'Range-Unit':'items','Range':start+'-'+end,'Prefer':'count=exact'}});
+    if(r.status===416)break;
+    if(r.status!==200&&r.status!==206)throw new Error(r.status+' '+table);
+    var d=await r.json();
+    if(!d||!d.length)break;
+    for(var i=0;i<d.length;i++)all.push(d[i]);
+    var cr=r.headers.get('content-range');
+    var total=cr?parseInt((cr.split('/')[1]||'0')):0;
+    console.log(table+': fetched '+all.length+(total?' of '+total:''));
+    if(d.length<batch||(total>0&&all.length>=total))break;
+    start+=batch;
+  }
+  return all;
+}
+function sbGet(row){var keys=Array.prototype.slice.call(arguments,1);for(var i=0;i<keys.length;i++){var v=row[keys[i]];if(v!==undefined&&v!==null&&String(v).trim()!=='')return String(v).trim();}return '';}
+function parseSupaDate(s){
+  if(!s)return null;
+  var str=String(s).trim();
+  // Formato brasileiro DD/MM/YYYY ou DD/MM/YYYY HH:MM:SS
+  if(/^\d{2}\/\d{2}\/\d{4}/.test(str)){
+    var p=str.split(/[\/\s:]/);
+    var d=new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]),
+      parseInt(p[3]||0),parseInt(p[4]||0),parseInt(p[5]||0));
+    return isNaN(d.getTime())?null:d;
+  }
+  // Formato ISO YYYY-MM-DD (sem hora): interpreta como LOCAL para evitar off-by-one UTC-3
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str)){
+    var parts=str.split('-');
+    return new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]),12,0,0);
+  }
+  // ISO com hora sem timezone (ex: 2026-05-12T12:00:00) — parseia como local
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str) && !/[+Z]/.test(str)){
+    var t=str.replace('T',' ').trim();
+    var d2=new Date(t);
+    if(!isNaN(d2.getTime()))return d2;
+  }
+  // ISO com timezone (ex: 2026-05-12T00:00:00+00) — strip timezone, parseia como local
+  var t2=str.replace('T',' ').replace(/[+Z].*$/,'').trim();
+  var d3=new Date(t2);
+  if(!isNaN(d3.getTime()))return d3;
+  // Último fallback
+  var d4=new Date(str);
+  return isNaN(d4.getTime())?null:d4;
+}
+var _origPAS=parseAppsScript;
+parseAppsScript=function(json,vendor){
+  var rows=json&&json.rows;
+  if(rows&&rows.length>0&&rows[0]._via==='supabase'){
+    return rows.map(function(row){var r=Object.assign({},row);if(r.date&&!(r.date instanceof Date)){var nd=new Date(r.date);r.date=isNaN(nd.getTime())?null:nd;}return r;});
+  }
+  return _origPAS(json,vendor);
+};
+(function(){
+  try{
+    var raw=localStorage.getItem('avacy_pmg_cache');
+    if(raw){
+      var o=JSON.parse(raw);
+      // 1. Limpa se datas sao strings (formato antigo)
+      var s=null;
+      if(o&&o.data)Object.keys(o.data).forEach(function(k){if(!s&&o.data[k]&&o.data[k].length)s=o.data[k][0];});
+      if(s&&s._via==='supabase'&&s.date&&typeof s.date==='string'){
+        localStorage.removeItem('avacy_pmg_cache');
+        console.log('Cache PMG limpo (data string)');
+        return;
+      }
+      // 2. Limpa se cache tem mais de 70 minutos (sync roda a cada 1h)
+      if(o&&o.ts&&(Date.now()-o.ts)>70*60*1000){
+        localStorage.removeItem('avacy_pmg_cache');
+        console.log('Cache PMG expirado (>70min) — buscando dados frescos');
+        return;
+      }
+    }
+  }catch(e){}
+})();
+
+// Override metaUltimoSalv: busca meta do META_OUTROS (fonte: META_VENDEDORES)
+// META_OUTROS agora é indexado tanto pelo nome completo quanto pelo nomeAba (ex: ADRIANO)
+// então o lookup é direto — sem necessidade de VENDOR_MAP
+var _origMUS = metaUltimoSalv;
+metaUltimoSalv = function(rows){
+  var vendor = rows && rows.length > 0 ? rows[0].vendor : null;
+  if(!vendor) return 0;
+  // 1. Verifica backup de HAVA PMG vendors (meta foi zerada em META_OUTROS para evitar dupla contagem)
+  if(window._sbHavaPmgMeta && window._sbHavaPmgMeta[vendor] > 0)
+    return window._sbHavaPmgMeta[vendor];
+  if(typeof META_OUTROS === 'undefined') return 0;
+  // 2. Busca direto pelo nome da aba (ex: ADRIANO) — indexado no loadMetaOutros via nome_aba
+  var entry = META_OUTROS[vendor];
+  if(entry && entry.metaFat > 0) return entry.metaFat;
+  return 0;
+};
+
 
 // Carrega TODOS os vendedores via cache (rápido) ou ao vivo (fallback)
-async function loadAllFromAppsScript() {
-  const tryFetch = async (action, timeoutMs) => {
-    const url = `${APPS_SCRIPT_URL}?action=${action}&t=${Date.now()}`;
-    const c = new AbortController();
-    const tid = setTimeout(() => c.abort(), timeoutMs);
-    try {
-      const r = await fetchNoCache(url, { redirect: 'follow', signal: c.signal });
-      clearTimeout(tid);
-      if (!r.ok) return null;
-      const data = JSON.parse(await r.text());
-      if (data?.status === 'ok' && data?.vendedores) return data;
-      return null;
-    } catch(e) {
-      clearTimeout(tid);
-      return null;
+async function loadAllFromAppsScript(){
+  var cfg=getSbConfig();if(!cfg.ok)return null;
+  try{
+    // Filtra somente o mês corrente para evitar dados de meses anteriores
+    var now=new Date();
+    var iniMes=new Date(now.getFullYear(),now.getMonth(),1);
+    var fimMes=new Date(now.getFullYear(),now.getMonth()+1,1);
+    var pad2=function(n){return String(n).padStart(2,'0');};
+    var iniStr=iniMes.getFullYear()+'-'+pad2(iniMes.getMonth()+1)+'-01';
+    var fimStr=fimMes.getFullYear()+'-'+pad2(fimMes.getMonth()+1)+'-01';
+    var mesFilter='data_envio=gte.'+iniStr+'&data_envio=lt.'+fimStr;
+    console.log('pmg_carteiras filtro mes:',mesFilter);
+    var rows=await sbFetchAll('pmg_carteiras','*',1000,mesFilter);
+    console.log('pmg rows:',rows.length,'sample:',rows.length>0?JSON.stringify(rows[0]).slice(0,100):'empty');
+    var latest={},maxMeta={},maxMetaPos={};
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i],k=(r.vendedor||'')+'|'+(r.cod_gc||''),d=new Date(r.data_envio||0);
+      if(!latest[k]||d>new Date(latest[k].data_envio||0))latest[k]=r;
+      var mf=parseFloat(r.meta_fat)||0,mp=parseFloat(r.meta_posit)||0;
+      if(!maxMeta[k]||mf>maxMeta[k])maxMeta[k]=mf;
+      if(!maxMetaPos[k]||mp>maxMetaPos[k])maxMetaPos[k]=mp;
     }
-  };
-  const filterAndReturn = (data, tag) => {
-    const filtered = {};
-    Object.keys(data.vendedores).forEach(nome => {
-      if (C.sh.includes(nome)) filtered[nome] = data.vendedores[nome];
-    });
-    console.log(`✅ Export (${tag}): ${Object.keys(filtered).length} vendedores`);
-    return filtered;
-  };
-
-  // Estratégia: dispara exportCached e exportFresh EM PARALELO, pega o que responder primeiro
-  // exportCached é rápido se cache ativo; exportFresh é o fallback real
-  const tStart = Date.now();
-  const cachedPromise = tryFetch('exportCached', 12000);
-  const freshPromise  = tryFetch('exportFresh',  60000);
-
-  // Aguarda o primeiro que retornar dados válidos
-  const winner = await Promise.any([
-    cachedPromise.then(d => d || Promise.reject('cached empty')),
-    freshPromise.then(d  => d || Promise.reject('fresh empty'))
-  ]).catch(() => null);
-
-  if (winner) {
-    const elapsed = Date.now() - tStart;
-    const src = winner._fromCache ? `⚡ cache (${elapsed}ms)` : `🔄 ao vivo (${elapsed}ms)`;
-    if (winner._fromCache) setTimeout(() => warmServerCache(), 500);
-    return filterAndReturn(winner, src);
-  }
-
-  console.warn('❌ Export falhou em ambas as chamadas paralelas');
-  return null;
+    var deduped=Object.values(latest);
+    var adrianoNZ=Object.entries(maxMeta).filter(function(e){return e[0].startsWith('ADRIANO')&&e[1]>0;});
+    console.log('maxMeta ADRIANO nonzero:',adrianoNZ.length,'sample:',JSON.stringify(adrianoNZ.slice(0,3)));
+    var allNZ=Object.entries(maxMeta).filter(function(e){return e[1]>0;});
+    console.log('maxMeta total nonzero:',allNZ.length,'sample:',JSON.stringify(allNZ.slice(0,3)));
+    for(var i=0;i<deduped.length;i++){
+      var k=(deduped[i].vendedor||'')+'|'+(deduped[i].cod_gc||'');
+      if(maxMeta[k]>0)deduped[i]=Object.assign({},deduped[i],{meta_fat:maxMeta[k]});
+      if(maxMetaPos[k]>0)deduped[i]=Object.assign({},deduped[i],{meta_posit:maxMetaPos[k]});
+    }
+    var byV={};
+    for(var i=0;i<deduped.length;i++){
+      var r=deduped[i],v=(r.vendedor||'').trim().toUpperCase();if(!v)continue;
+      if(!byV[v])byV[v]=[];
+      var nv=(r.nao_venda||'').trim().toUpperCase()==='SIM',mot=(r.motivo||'').trim(),dt=parseSupaDate(r.data_envio);
+      byV[v].push({vendor:v,client:String(r.cod_gc||'').trim().replace(/\.0+$/,''),clientName:(r.nome_cliente||'').trim(),dateRaw:r.data_envio||'',date:dt,value:parseFloat(r.fat_mes)||0,meta:parseFloat(r.meta_fat)||0,metaPos:parseFloat(r.meta_posit)||0,positMes:parseFloat(r.posit_mes)||0,diasVenda:(r.dias_venda||'').trim(),carteira:(r.carteira||'').trim(),contato:(r.dias_contato||'').trim(),motivo:nv?(mot||'SIM'):mot,cluster:(r.cluster||'').toUpperCase().trim(),_via:'supabase'});
+    }
+    var vnames=Object.keys(byV);
+    console.log('byV vendores:',vnames.join(','));
+    if(byV['ADRIANO']){
+      var metaRows=byV['ADRIANO'].filter(function(r){return r.meta>0;});
+      console.log('ADRIANO meta>0 rows:',metaRows.length,'of',byV['ADRIANO'].length,'total');
+      if(metaRows.length>0)console.log('ADRIANO meta sample:',JSON.stringify(metaRows.slice(0,2).map(function(r){return{gc:r.client,meta:r.meta};})));
+    }
+    if(typeof META_OUTROS!=='undefined'){
+      vnames.forEach(function(vendedor){
+        var gcMax={};
+        byV[vendedor].forEach(function(r){var gc=r.client||'';if(!gc)return;if(!gcMax[gc]||r.meta>gcMax[gc])gcMax[gc]=r.meta||0;});
+        var total=Object.values(gcMax).reduce(function(a,v){return a+(v||0);},0);
+        if(total>0){
+          if(!META_OUTROS[vendedor])META_OUTROS[vendedor]={metaFat:0,metaPos:0,canal:'farmer'};
+          if(total>META_OUTROS[vendedor].metaFat){META_OUTROS[vendedor].metaFat=total;console.log('META_OUTROS['+vendedor+']='+total);}
+        }
+      });
+    }
+    return byV;
+  }catch(e){console.error('pmg erro:',e.message);return null;}
 }
+
 
 // Aquece o cache no servidor em background (sem bloquear a UI)
-async function warmServerCache() {
-  try {
-    await fetchNoCache(`${APPS_SCRIPT_URL}?action=exportFresh&t=${Date.now()}`, {
-      redirect: 'follow',
-      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 45000); return c.signal; })()
-    });
-    console.log('🔥 Cache do servidor atualizado em background');
-  } catch(e) {
-    // silencioso — não afeta a UI
-  }
-}
+async function warmServerCache(){}
 
 // Carrega aba vendas_v1 para Faturamento e Positivado MTD
-async function loadVendasV1() {
-  // Tenta 2 rotas: ?sheet=vendas_v1 (geralmente fresh) primeiro, depois ?action=vendas_v1 (cached, mas compatível)
-  const tryUrls = [
-    `${APPS_SCRIPT_URL}?sheet=vendas_v1&t=${Date.now()}`,
-    `${APPS_SCRIPT_URL}?action=vendas_v1&t=${Date.now()}`
-  ];
-  let data = null;
-  for (const url of tryUrls) {
-    try {
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), 15000);
-      const r = await fetchNoCache(url, { redirect: 'follow', signal: ctrl.signal });
-      if (!r.ok) { console.warn(`❌ vendas_v1 (${url.includes('sheet=')?'sheet':'action'}): status não ok`); continue; }
-      const txt = await r.text();
-      try { data = JSON.parse(txt); } catch(e) { console.warn(`❌ vendas_v1: JSON inválido`, e.message); continue; }
-      if (data && data.rows && data.rows.length) {
-        console.log(`✅ vendas_v1 carregou via ${url.includes('sheet=')?'sheet':'action'}: ${data.rows.length} rows`);
-        break;
+async function loadVendasV1(){
+  var cfg=getSbConfig();if(!cfg.ok)return;
+  try{
+    var now=new Date();
+    var iniMesV1=new Date(now.getFullYear(),now.getMonth(),1);
+    var fimMesV1=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
+
+    // Tenta filtro server-side (funciona se data_fat é tipo DATE no Supabase)
+    var pad2=function(n){return String(n).padStart(2,'0');};
+    var iniStr=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-01';
+    var fimDate=new Date(now.getFullYear(),now.getMonth()+1,1);
+    var fimStr=fimDate.getFullYear()+'-'+pad2(fimDate.getMonth()+1)+'-01';
+    var v1Filter='data_fat=gte.'+iniStr+'&data_fat=lt.'+fimStr;
+    var rows=await sbFetchAll('vendas_v1','*',1000,v1Filter);
+
+    // Diagnóstico: ver formato real de data_fat
+    if(rows.length>0){
+      console.log('🗓️ vendas_v1 rows do servidor:',rows.length);
+      console.log('🗓️ data_fat amostra:',rows[0].data_fat,'|',rows[Math.min(5,rows.length-1)].data_fat);
+      var _cntMes={};rows.forEach(function(r){var k=(r.data_fat||'').substring(0,7);_cntMes[k]=(_cntMes[k]||0)+1;});
+      console.log('🗓️ vendas_v1 por mes (raw):',JSON.stringify(_cntMes));
+    } else {
+      // Filtro server-side retornou vazio — coluna pode ser texto com formato diferente
+      // Tenta sem filtro e filtra no JS
+      console.warn('🗓️ vendas_v1 filtro server retornou vazio — carregando sem filtro');
+      rows=await sbFetchAll('vendas_v1');
+      console.log('🗓️ vendas_v1 sem filtro:',rows.length,'rows');
+      if(rows.length>0){
+        console.log('🗓️ data_fat amostra (sem filtro):',rows[0].data_fat,'|',rows[Math.min(5,rows.length-1)].data_fat);
+        var _cntMes2={};rows.forEach(function(r){var k=(r.data_fat||'').substring(0,7);_cntMes2[k]=(_cntMes2[k]||0)+1;});
+        console.log('🗓️ vendas_v1 por mes (raw sem filtro):',JSON.stringify(_cntMes2));
       }
-    } catch(e) { console.warn(`❌ vendas_v1 fetch falhou:`, e.message); }
-  }
-  if (!data || !data.rows || !data.rows.length) { console.warn('❌ vendas_v1: todas as rotas falharam'); return; }
-
-  try {
-
-    // Log dos campos disponíveis para diagnóstico
-    const availableKeys = Object.keys(data.rows[0] || {});
-    console.log(`📦 vendas_v1: ${data.rows.length} rows | campos: ${availableKeys.join(', ')}`);
-
-    // Detecta automaticamente os nomes das colunas (case-insensitive)
-    const findKey = (row, ...candidates) => {
-      const keys = Object.keys(row);
-      for (const c of candidates) {
-        const found = keys.find(k => k.trim().toUpperCase() === c.toUpperCase());
-        if (found) return found;
-      }
-      return null;
-    };
-    const sampleRow = data.rows[0];
-    const kNome  = findKey(sampleRow, 'NOME_VENDEDOR', 'VENDEDOR', 'NOME VENDEDOR');
-    const kFat   = findKey(sampleRow, 'FATURAMENTO', 'FAT', 'FAT. MÊS', 'FAT.MES', 'VALOR');
-    const kData  = findKey(sampleRow, 'DATA_FAT', 'DATA FAT', 'DATA', 'DATA ENVIO', 'DATA_FAT.');
-    const kCodCL = findKey(sampleRow, 'COD_CLIENTE_LOJA', 'COD CLIENTE LOJA', 'CODIGO_CLIENTE', 'COD_GC_LOJA');
-    const kCodGC = findKey(sampleRow, 'COD_GC', 'COD GC', 'CODIGO GC', 'GC');
-    const kCusto = findKey(sampleRow, 'CUSTO');
-    const kImp   = findKey(sampleRow, 'IMPOSTO');
-    console.log(`🔑 Mapeamento: nome=${kNome} fat=${kFat} data=${kData} codCL=${kCodCL} codGC=${kCodGC} custo=${kCusto} imposto=${kImp}`);
-
-    const kExec = findKey(sampleRow, 'DT_EXECUCAO', 'DT EXECUCAO', 'EXECUCAO', 'DT_EXEC');
-    const pNum  = s => parseFloat((s||'').replace(/[^\d,.-]/g,'').replace(',','.')) || 0;
-
-    // Captura máximos RAW (antes de filtrar r.date) — usado como baseline do checkUpdates
-    // Isso garante que o baseline use a MESMA fonte que o check (todas as rows retornadas)
-    let _rawMaxExec = new Date(0);
-    let _rawMaxFat  = new Date(0);
-    data.rows.forEach(row => {
-      if (kExec) {
-        const d = pDate(row[kExec] || '');
-        if (d && d > _rawMaxExec) _rawMaxExec = d;
-      }
-      if (kData) {
-        const d = pDate(row[kData] || '');
-        if (d && d > _rawMaxFat) _rawMaxFat = d;
-      }
-    });
-
-    VENDAS_V1 = data.rows.map(row => {
-      const nomeVend = kNome ? (row[kNome] || '').trim().replace(/\s+/g,' ').toUpperCase() : '';
-      const vendor   = VENDOR_MAP[nomeVend] || nomeVend;
-      const fat      = kFat  ? pNum(row[kFat])  : 0;
-      const custo    = kCusto? pNum(row[kCusto]) : 0;
-      const imposto  = kImp  ? pNum(row[kImp])   : 0;
-      const dateStr  = kData ? (row[kData] || '') : '';
-      const codCL    = kCodCL ? (row[kCodCL] || '').trim() : '';
-      const codGC    = kCodGC ? (row[kCodGC] || '').trim() : '';
-      const date     = pDate(dateStr);
-      const execStr  = kExec ? (row[kExec] || '').trim() : '';
-      return { vendor, nomeVend, codClienteLoja: codCL, codGC, fat, custo, imposto, date, dateStr, execStr };
-    }).filter(r => r.nomeVend && r.date);
-
-    console.log(`✅ vendas_v1: ${VENDAS_V1.length} linhas válidas`);
-    // Usa os máximos RAW (antes do filtro) como baseline — mesma fonte do checkUpdates
-    _lastV1MaxDate  = _rawMaxFat.getTime()  > 0 ? _rawMaxFat  : getV1MaxDate();
-    _lastV1ExecDate = _rawMaxExec.getTime() > 0 ? _rawMaxExec : getV1MaxExecDate();
-    console.log(`🔖 Baseline v1: maxFat=${_lastV1MaxDate.toLocaleString('pt-BR')} maxExec=${_lastV1ExecDate.toLocaleString('pt-BR')}`);
-    _lastPmgMaxDate = getPmgMaxDate();
-    // Atualiza label "Venda atualizada até" — usa DT_EXECUCAO (data/hora da última execução)
-    const execMax = VENDAS_V1.reduce((max, r) => {
-      const d = pDate(r.execStr);
-      return d && d > max ? d : max;
-    }, new Date(0));
-    const dateForLabel = execMax.getTime() > 0 ? execMax : getV1MaxDate();
-    if (dateForLabel.getTime() > 0) {
-      const pad2 = n => String(n).padStart(2,'0');
-      const v1Str = `${pad2(dateForLabel.getDate())}/${pad2(dateForLabel.getMonth()+1)} ${pad2(dateForLabel.getHours())}:${pad2(dateForLabel.getMinutes())}`;
-      const el = document.getElementById('upd-v1');
-      if (el) { el.textContent = `Venda atualizada até ${v1Str}`; el.style.display = ''; }
     }
-  } catch(e) {
-    console.warn('❌ vendas_v1 falhou:', e.message);
-  }
+
+    var mxE=new Date(0),mxF=new Date(0);
+    for(var i=0;i<rows.length;i++){
+      var dE=parseSupaDate(rows[i].dt_execucao);
+      if(dE&&dE>mxE)mxE=dE;
+      if(dE&&dE>mxF)mxF=dE; // dt_execucao é a data real do faturamento
+    }
+    VENDAS_V1=[];
+    var skippedMes=0;
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i],n=(r.nome_vendedor||'').trim().replace(/\s+/g,' ').toUpperCase();
+      if(!n)continue;
+      // data real = dt_execucao (dia do faturamento); data_fat = competência do mês
+      var dExec=parseSupaDate(r.dt_execucao);
+      var dFat =parseSupaDate(r.data_fat);
+      // Usa dt_execucao como date principal para filtros de período (hoje, últimos 7 dias, etc.)
+      // Se não tiver dt_execucao, cai para data_fat
+      var d=dExec||dFat;
+      if(!d)continue;
+      // Filtro JS: só registros cujo dt_execucao está no mês corrente
+      var dMes=dExec||dFat;
+      if(dMes<iniMesV1||dMes>fimMesV1){skippedMes++;continue;}
+      VENDAS_V1.push({vendor:VENDOR_MAP[n]||n,nomeVend:(typeof HAVA_PMG_VENDORS!=='undefined'&&typeof VENDOR_MAP!=='undefined'&&HAVA_PMG_VENDORS.indexOf(VENDOR_MAP[n]||n)>=0)?(VENDOR_MAP[n]||n):n,codClienteLoja:(r.cod_cliente_loja||'').trim(),codGC:String(r.cod_gc||'').trim().replace(/\.0+$/,''),fat:parseFloat(r.faturamento)||0,custo:parseFloat(r.custo)||0,imposto:parseFloat(r.imposto)||0,date:d,dateStr:r.dt_execucao||r.data_fat||'',execStr:r.dt_execucao||''});
+    }
+    console.log('🗓️ VENDAS_V1 após filtro JS:',VENDAS_V1.length,'skipped(outro mes):',skippedMes);
+    if(VENDAS_V1.length>0){
+      var _cnt={};VENDAS_V1.forEach(function(r){var k=r.date?(r.date.getDate()+'/'+('0'+(r.date.getMonth()+1)).slice(-2)):'null';_cnt[k]=(_cnt[k]||0)+1;});
+      console.log('🗓️ VENDAS_V1 por dia:',JSON.stringify(_cnt));
+      var _fatTot=VENDAS_V1.reduce(function(a,r){return a+r.fat;},0);
+      console.log('🗓️ VENDAS_V1 fat total MTD:',_fatTot.toFixed(0));
+    }
+    var em=VENDAS_V1.reduce(function(m,r){var d=parseSupaDate(r.execStr);return d&&d>m?d:m;},new Date(0)),lbl=em.getTime()>0?em:getV1MaxDate();
+    if(lbl.getTime()>0){var p=function(n){return String(n).padStart(2,'0');},el=document.getElementById('upd-v1');if(el){el.textContent='Venda atualizada ate '+p(lbl.getDate())+'/'+p(lbl.getMonth()+1)+' '+p(lbl.getHours())+':'+p(lbl.getMinutes());el.style.display='';}}
+  }catch(e){console.warn('vendas_v1:',e.message);}
 }
+
 
 async function fetchSheetCSV(name) {
   for (const csvUrl of [
@@ -986,7 +938,7 @@ function parseAppsScript(json, vendor) {
       dateRaw:   dateStr,
       date:      pDate(dateStr),
       value:     iVl   >= 0 ? num(get(row, headers[iVl]))     : 0,
-      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) : 0,
+      meta:      iMeta >= 0 ? num(get(row, headers[iMeta])) * 1000 : 0,
       metaPos:   iMetaPos >= 0 ? num(get(row, headers[iMetaPos])) : 0,
       positMes:  iPositMes >= 0 ? num(get(row, headers[iPositMes])) : 0,
       diasVenda: iDv >= 0 ? get(row, headers[iDv]) : '',
@@ -1265,15 +1217,17 @@ async function loadData(){
   const promiseCC   = loadClienteCluster();
   const promiseVC   = loadVendCanal();
 
-  // Mostra banner de atualização imediatamente
-  document.getElementById('updating-banner').style.display = 'block';
-  document.getElementById('updating-overlay').style.display = 'block';
-  const setStatus = (txt) => { const el = document.getElementById('updating-status'); if(el) el.textContent = txt; };
+  // Banner discreto no canto inferior direito (não bloqueia tela)
+  const bgLoading = document.getElementById('bg-loading');
+  const bgText    = document.getElementById('bg-loading-text');
+  if (bgLoading) bgLoading.style.display = 'flex';
+  if (bgText)    bgText.textContent = 'Carregando dados…';
+  const setStatus = (txt) => { if (bgText) bgText.textContent = txt; };
 
-  // Fase 1: aguarda vendas_v1 + META_OUTROS + CONSOLIDADO + CLIENTE_CLUSTER + VEND_CANAL
-  setStatus('Carregando faturamento e metas…');
+  // Aguarda TODAS as abas críticas para garantir que metas, clusters e canais estão corretos
+  // (antes tentamos paralelizar mais agressivo, mas causava metas incorretas no primeiro render)
   await Promise.all([promiseV1, promiseMeta, promiseCons, promiseCC, promiseVC]);
-  console.log(`⏱️ Fase 1: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length} canais=${Object.keys(VEND_CANAL_MAP).length}`);
+  console.log(`⏱️ Fase 1 completa: ${Date.now()-t0}ms | v1=${VENDAS_V1.length} meta=${Object.keys(META_OUTROS).length} canais=${Object.keys(VEND_CANAL_MAP).length}`);
 
   btn.classList.remove('ld');
   const now0a = new Date();
@@ -1294,9 +1248,7 @@ async function loadData(){
     allCandidates.forEach(name => {
       const vendorRows = exportData[name];
       if (vendorRows && vendorRows.length > 0) {
-        const headers = Object.keys(vendorRows[0]);
-        DATA['__cols__' + name] = headers;
-        DATA[name] = parseAppsScript({ headers, rows: vendorRows }, name);
+      if(vendorRows[0]._via==='supabase'){var fx=vendorRows.map(function(r){var o=Object.assign({},r);if(o.date&&!(o.date instanceof Date)){var nd=new Date(o.date);o.date=isNaN(nd.getTime())?null:nd;}return o;});DATA[name]=fx;DATA['__cols__'+name]=Object.keys(vendorRows[0]);}else{const headers=Object.keys(vendorRows[0]);DATA['__cols__'+name]=headers;DATA[name]=parseAppsScript({headers,rows:vendorRows},name);}
       } else { DATA[name] = []; }
     });
     const active = allCandidates.filter(v => (DATA[v]||[]).length > 0);
@@ -1311,6 +1263,7 @@ async function loadData(){
     applyExport(_cachedPmgData);
     document.getElementById('updating-banner').style.display = 'none';
     document.getElementById('updating-overlay').style.display = 'none';
+    if (bgLoading) bgLoading.style.display = 'none';
     buildTabs(); render();
     console.log(`⚡ Render com cache: ${Date.now()-t0}ms | pmgMudou=${pmgMudou}`);
 
@@ -1334,66 +1287,62 @@ async function loadData(){
     return;
   }
 
-  // Sem cache nenhum: aguarda PMG com banner
+  // Sem cache nenhum: renderiza Fase 1 imediatamente e carrega PMG em BACKGROUND (não-bloqueante)
   document.getElementById('updating-banner').style.display = 'none';
   document.getElementById('updating-overlay').style.display = 'none';
   buildTabs(); render();
-  document.getElementById('updating-banner').style.display = 'block';
-  document.getElementById('updating-overlay').style.display = 'block';
-  const updStatus2 = document.getElementById('updating-status');
-  if (updStatus2) updStatus2.textContent = 'Carregando carteiras dos vendedores…';
+  console.log(`⚡ Render Fase 1 (sem PMG): ${Date.now()-t0}ms — PMG em background...`);
 
-  const exportData = await loadAllFromAppsScript();
-  document.getElementById('updating-banner').style.display = 'none';
-  document.getElementById('updating-overlay').style.display = 'none';
-  console.log(`⏱️ PMG (sem cache): ${Date.now()-t0}ms | export=${!!exportData}`);
+  // Banner discreto agora vira "Carregando carteiras..." em segundo plano
+  if (bgLoading) bgLoading.style.display = 'flex';
+  if (bgText)    bgText.textContent = 'Carregando carteiras dos vendedores…';
 
-  if (exportData) {
-    applyExport(exportData);
-    _cachedPmgData = exportData;
-    _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
-    savePmgCache(exportData, _cachedPmgConsolidado);
-    window._gcClusterMapGlobal = {};
-  } else {
-    console.warn('Export falhou — iniciando retry automático em background');
-    // Retry automático: 3 tentativas com 5s de intervalo — cobre falha transitória
-    const updStatusRetry = document.getElementById('updating-status');
-    let retryCount = 0;
-    const maxRetries = 3;
-    const retryInterval = 5000;
-    const doRetry = async () => {
-      retryCount++;
-      console.log(`🔁 Retry PMG ${retryCount}/${maxRetries}...`);
-      if (updStatusRetry) updStatusRetry.textContent = `Tentando carregar carteiras… (${retryCount}/${maxRetries})`;
-      document.getElementById('updating-banner').style.display = 'block';
-      document.getElementById('updating-overlay').style.display = 'block';
-      const retryData = await loadAllFromAppsScript();
-      if (retryData) {
-        applyExport(retryData);
-        _cachedPmgData = retryData;
-        _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
-        savePmgCache(retryData, _cachedPmgConsolidado);
-        window._gcClusterMapGlobal = {};
-        document.getElementById('updating-banner').style.display = 'none';
-        document.getElementById('updating-overlay').style.display = 'none';
-        buildTabs(); render();
-        console.log(`✅ Retry ${retryCount} bem-sucedido`);
-        return;
-      }
-      if (retryCount < maxRetries) {
-        setTimeout(doRetry, retryInterval);
-      } else {
-        document.getElementById('updating-banner').style.display = 'none';
-        document.getElementById('updating-overlay').style.display = 'none';
-        console.warn('❌ Todas as tentativas falharam — usuário precisa clicar em Atualizar');
-      }
-    };
-    setTimeout(doRetry, 1000); // primeira tentativa em 1s
-  }
+  // Busca PMG sem await — não bloqueia o resto do loadData
+  loadAllFromAppsScript().then(exportData => {
+    if (bgLoading) bgLoading.style.display = 'none';
+    console.log(`⏱️ PMG background concluído: ${Date.now()-t0}ms | export=${!!exportData}`);
 
-  buildTabs(); render();
+    if (exportData) {
+      applyExport(exportData);
+      _cachedPmgData = exportData;
+      _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
+      savePmgCache(exportData, _cachedPmgConsolidado);
+      window._gcClusterMapGlobal = {};
+      buildTabs(); render();
+    } else {
+      console.warn('Export falhou — iniciando retry automático em background');
+      let retryCount = 0;
+      const maxRetries = 3;
+      const retryInterval = 5000;
+      const doRetry = async () => {
+        retryCount++;
+        console.log(`🔁 Retry PMG ${retryCount}/${maxRetries}...`);
+        if (bgLoading) bgLoading.style.display = 'flex';
+        if (bgText)    bgText.textContent = `Tentando carregar carteiras… (${retryCount}/${maxRetries})`;
+        const retryData = await loadAllFromAppsScript();
+        if (retryData) {
+          applyExport(retryData);
+          _cachedPmgData = retryData;
+          _cachedPmgConsolidado = JSON.parse(JSON.stringify(CONSOLIDADO_DATAS));
+          savePmgCache(retryData, _cachedPmgConsolidado);
+          window._gcClusterMapGlobal = {};
+          if (bgLoading) bgLoading.style.display = 'none';
+          buildTabs(); render();
+          console.log(`✅ Retry ${retryCount} bem-sucedido`);
+          return;
+        }
+        if (retryCount < maxRetries) {
+          setTimeout(doRetry, retryInterval);
+        } else {
+          if (bgLoading) bgLoading.style.display = 'none';
+          console.warn('❌ Todas as tentativas falharam — usuário precisa clicar em Atualizar');
+        }
+      };
+      setTimeout(doRetry, 1000);
+    }
+  });
 
-  console.log(`⏱️ Render completo: ${Date.now()-t0}ms`);
+  console.log(`⏱️ loadData retornou (PMG ainda carregando): ${Date.now()-t0}ms`);
 }
 
 // ── PERIOD ────────────────────────────────────────────
@@ -1773,8 +1722,13 @@ function _render(){
     return isNaN(d.getTime()) ? null : localDK(d);
   };
 
+  // Normaliza chave de cliente: usa codGC (mesmo formato em ambas as fontes) — evita contagem dupla
+  // Sem prefixo de vendor: cliente atendido por 2 vendedores no mesmo dia conta 1 vez
+  const normGC = (s) => String(s||'').trim().replace(/\.0+$/,'');
+
   evoRaw.forEach(r => {
-    const clientKey = (r.vendor||'') + '::' + r.client;
+    const gc = normGC(r.client);
+    if (!gc) return;
 
     // Expande DIAS CONTATO
     const coStr = String(r.contato || '').trim();
@@ -1783,7 +1737,7 @@ function _render(){
         const k = getDayKey(day);
         if (!k) return;
         if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
-        byD[k].contato.add(clientKey);
+        byD[k].contato.add(gc);
       });
     }
 
@@ -1794,26 +1748,14 @@ function _render(){
         const k = getDayKey(day);
         if (!k) return;
         if (!byD[k]) byD[k] = { contato: new Set(), positivado: new Set() };
-        byD[k].positivado.add(clientKey);
+        byD[k].positivado.add(gc);
       });
     }
   });
 
-  // Helper: formata data como YYYY-MM-DD usando hora LOCAL (evita problema UTC-3)
-  // Complementa positivados com vendas_v1 (fonte confiável de faturamento real por data)
-  const hoje = localDK(new Date());
-  VENDAS_V1.filter(r => r.date && r.fat > 0).forEach(r => {
-    if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return;
-    if (ACTIVE === 'all') {
-      if (CHANNELS.includes(GROUP)) { if (!getChannelVendors(GROUP).includes(r.nomeVend)) return; }
-      else if (GROUP === 'farmer')    { if (!getFarmerVendors().includes(r.vendor)) return; }
-      else if (GROUP === 'developer') { if (!DEVELOPER_VENDORS.includes(r.vendor)) return; }
-    }
-    const dayKey = localDK(r.date);
-    if (!byD[dayKey]) byD[dayKey] = { contato: new Set(), positivado: new Set() };
-    const key = 'v1::' + (r.codGC || r.codClienteLoja || '');
-    if (key !== 'v1::') byD[dayKey].positivado.add(key);
-  });
+  // Nota: VENDAS_V1 não é usado no gráfico diário de positivados
+  // pois dt_execucao reflete a data do sync (não o dia real da venda)
+  // Os positivados diários vêm dos DIAS VENDA do PMG (já processados acima em evoRaw)
   // Converte Sets para contagens
   Object.values(byD).forEach(d => {
     d.contato    = d.contato.size;
@@ -1825,19 +1767,54 @@ function _render(){
   // Pré-calcula getMaxDay uma vez para todo allRaw (evita recalcular por vendedor)
   const _maxDayInfo = getMaxDay(dd);
   const vs = {};
-  getGroupVendors().forEach(v => {
+  // Inclui todos os vendors do grupo — mesmo sem dados PMG (usando canal do META_OUTROS)
+  const _vsVendors = (() => {
+    const base = getGroupVendors();
+    if (GROUP === 'farmer' || GROUP === 'developer') {
+      const shOrig = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS',
+                      'JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL',
+                      'ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
+      const seen = new Set(base);
+      const extra = [];
+      Object.entries(META_OUTROS).forEach(([k, m]) => {
+        if (!m || m.canal !== GROUP) return;
+        const key = m.nomeAba || k;
+        if (!key || seen.has(key)) return;
+        if (shOrig.includes(key)) { seen.add(key); extra.push(key); }
+      });
+      return [...base, ...extra];
+    }
+    return base;
+  })();
+  _vsVendors.forEach(v => {
     const vdRaw  = getRaw(v); // dados brutos sem dedup — necessário para meta correta
     const vdAll  = dedup(vdRaw);
     const vd     = fltPeriod(vdAll);
     const vdDate = fltPeriodByDate(vdAll);
     // Faturamento do período via vendas_v1
-    const vFat = v1Period.filter(r => r.vendor === v).reduce((a,r) => a + (r.fat||0), 0);
-    // Meta FAT — usa dados brutos para preservar GCs duplicados com metas diferentes
+    // Busca por vendor (nome abreviado) OU pelo nome completo via nomeVend
+    // Isso garante que vendors cujo nome_vendedor não está no VENDOR_MAP ainda aparecem
+    const _nomeCompleto = Object.entries(VENDOR_MAP).find(([,ab]) => ab === v)?.[0] || '';
+    const vFat = v1Period.filter(r => r.vendor === v || (_nomeCompleto && r.nomeVend === _nomeCompleto))
+                         .reduce((a,r) => a + (r.fat||0), 0);
+
+    // Meta FAT — busca em META_OUTROS primeiro (todos os vendors, mesmo sem PMG)
+    // Fallback: metaUltimoSalv via dados PMG (para vendors com aba)
+    const vMetaFat = (() => {
+      const mDirect = META_OUTROS[v];
+      if (mDirect && mDirect.metaFat > 0) return mDirect.metaFat;
+      // Backup HAVA PMG
+      if (window._sbHavaPmgMeta && window._sbHavaPmgMeta[v] > 0) return window._sbHavaPmgMeta[v];
+      // Fallback PMG
+      return metaUltimoSalv(vdRaw);
+    })();
+
     const maxVDate = vdAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
     const bestMonth = maxVDate.getTime() > 0 ? new Date(maxVDate.getFullYear(), maxVDate.getMonth(), 1) : iniMes2;
-    const vMetaFat = metaUltimoSalv(vdRaw);
     const vRowsMeta = vdAll.filter(r => r.date && r.date >= bestMonth);
-    const vMetaPos = vRowsMeta.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
+    const vMetaPos = vRowsMeta.reduce((max,r) => Math.max(max, r.metaPos||0), 0) ||
+                     (META_OUTROS[v] ? META_OUTROS[v].metaPos||0 : 0);
+
     // Positivado do período via vendas_v1 (respeita filtro de período)
     const vPositSet = new Set(
       v1Period.filter(r => r.vendor === v && r.fat > 0)
@@ -1846,6 +1823,16 @@ function _render(){
     const vPositMtd = vPositSet.size;
     const vAtingFat = vMetaFat > 0 ? Math.round((vFat / vMetaFat) * 100) : null;
     const vAtingPos = vMetaPos > 0 ? Math.round((vPositMtd / vMetaPos) * 100) : null;
+    // Clientes distintos por cod_gc — respeita filtro de período
+    // Carteira: clientes distintos com carteira='sim' (período all — sempre o total da carteira)
+    const _cartSet  = new Set(vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim()==='sim').map(r=>r.client).filter(Boolean));
+    // Contato: clientes distintos com contato preenchido no período filtrado
+    const _contSet  = new Set(vd.filter(r => r.contato && r.contato.trim()).map(r=>r.client).filter(Boolean));
+    // Venda (positivado): clientes distintos com venda no período (via vendas_v1)
+    const _vendSet  = new Set(v1Period.filter(r => r.vendor===v && r.fat>0).map(r=>r.codGC).filter(Boolean));
+    // Não venda: clientes distintos com motivo preenchido no período filtrado por data
+    const _nvSet    = new Set(vdDate.filter(r => r.motivo && r.motivo.trim()).map(r=>r.client).filter(Boolean));
+
     vs[v] = {
       fat:         vFat,
       metaFat:     vMetaFat,
@@ -1853,10 +1840,10 @@ function _render(){
       positMtd:    vPositMtd,
       metaPos:     vMetaPos,
       atPos:       vAtingPos,
-      em_carteira: vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim() === 'sim').length,
-      em_contato:  vd.filter(r => r.contato && r.contato.trim()).length,
-      positivado:  new Set(v1Period.filter(r => r.vendor === v && r.fat > 0).map(r => r.codGC).filter(Boolean)).size,
-      nao_venda:   vdDate.filter(r => r.motivo && r.motivo.trim()).length,
+      em_carteira: _cartSet.size,
+      em_contato:  _contSet.size,
+      positivado:  _vendSet.size,
+      nao_venda:   _nvSet.size,
     };
   });
 
@@ -1893,6 +1880,13 @@ function _render(){
   const sumPositMes = positSet.size;
 
   console.log(`📊 MTD: fat=${totValMtd.toFixed(0)} posit=${sumPositMes} linhas=${v1Filt.length}`);
+  console.log(`📊 VENDAS_V1 total=${VENDAS_V1.length} iniMes2=${iniMes2.toISOString()} fimMes2=${fimMes2.toISOString()}`);
+  if(VENDAS_V1.length>0){
+    var _samp=VENDAS_V1.slice(0,3).map(function(r){return{dateStr:r.dateStr,date:r.date?r.date.toISOString():'null',fat:r.fat};});
+    console.log('📊 VENDAS_V1 amostra:',JSON.stringify(_samp));
+    var _cntV1Mes={};VENDAS_V1.forEach(function(r){var k=r.date?(r.date.getFullYear()+'-'+(r.date.getMonth()+1)):'null';_cntV1Mes[k]=(_cntV1Mes[k]||0)+1;});
+    console.log('📊 VENDAS_V1 por mes (parsed):',JSON.stringify(_cntV1Mes));
+  }
 
   // Calcula metaByCluster aqui — antes dos KPIs — para que _metaByClusterGlobal esteja correto
   {
@@ -1934,10 +1928,18 @@ function _render(){
     if (CLUSTER_FILTER) console.log(`🎯 _meta2: D=${_meta2.DIAMANTE} O=${_meta2.OURO} Dem=${_meta2.DEMAIS} total=${_metaTotal2} gcMapSize=${Object.keys(_gcMap).length}`);
   }
 
-  // Meta FAT e Meta Posit: PMG vendors via abas + canais via META_OUTROS
-  const vendorsAtivos = vendAtivos.filter(v => (DATA[v]||[]).length > 0);
+  // Meta FAT e Meta Posit: PMG vendors via META_OUTROS (fonte única) + canais
+  const vendorsAtivos = vendAtivos; // não filtra por DATA[v].length — meta existe mesmo sem dados PMG
   let totalMetaPos = 0;
   let totalMetaFat  = 0;
+
+  // Helper: busca meta de um PMG vendor no META_OUTROS
+  // META_OUTROS é indexado pelo nomeAba (ex: ADRIANO) via loadMetaOutros — lookup direto
+  const getMetaPmgVendor = (v) => {
+    const m = META_OUTROS[v];
+    if (m && m.metaFat > 0) return m;
+    return { metaFat: 0, metaPos: 0 };
+  };
 
   if (CHANNELS.includes(GROUP)) {
     // Canal específico selecionado
@@ -1954,35 +1956,68 @@ function _render(){
     }
     // Se HAVA: inclui também meta das abas PMG (SAMARA)
     if (GROUP === 'hava') {
-      HAVA_PMG_VENDORS.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
-        totalMetaFat += metaUltimoSalv((DATA[v]||[]).map(r=>({...r,vendor:v})));
+      HAVA_PMG_VENDORS.forEach(v => {
+        const m = getMetaPmgVendor(v);
+        totalMetaFat += m.metaFat || 0;
+        totalMetaPos += m.metaPos || 0;
       });
     }
   } else {
-    // GROUP = all, farmer, developer — soma PMG vendors
-    vendorsAtivos.forEach(v => {
-      const vRaw = getRaw(v);
-      totalMetaFat += metaUltimoSalv(vRaw);
-      const vAll = dedup(vRaw);
-      const vMaxDate = vAll.reduce((max,r) => r.date && r.date > max ? r.date : max, new Date(0));
-      const vBestMonth = vMaxDate.getTime() > 0 ? new Date(vMaxDate.getFullYear(), vMaxDate.getMonth(), 1) : iniMes2;
-      const vRowsMtd = vAll.filter(r => r.date && r.date >= vBestMonth);
-      totalMetaPos += vRowsMtd.reduce((max,r) => Math.max(max, r.metaPos||0), 0);
-    });
-    // GROUP = all: também soma todos os canais do META_OUTROS
-    if (GROUP === 'all') {
-      ['closer','martins','ka','hava'].forEach(ch => {
+    // GROUP = all, farmer, developer — soma por canal no META_OUTROS (não depende de C.sh)
+    const _sumCanal = (canalNome) => {
+      const seen = new Set();
+      let mF=0, mP=0;
+      Object.entries(META_OUTROS).forEach(([k,m]) => {
+        if (!m||m.canal!==canalNome) return;
+        const key = m.nomeAba||k;
+        if (seen.has(key)) return;
+        seen.add(key);
+        mF += m.metaFat||0; mP += m.metaPos||0;
+      });
+      return {mF,mP};
+    };
+
+    if (GROUP === 'farmer') {
+      const {mF,mP} = _sumCanal('farmer');
+      totalMetaFat += mF; totalMetaPos += mP;
+    } else if (GROUP === 'developer') {
+      const {mF,mP} = _sumCanal('developer');
+      totalMetaFat += mF; totalMetaPos += mP;
+    } else if (GROUP === 'all') {
+      // Soma farmer + developer + hava (PMG) via canal
+      ['farmer','developer'].forEach(c => {
+        const {mF,mP} = _sumCanal(c); totalMetaFat+=mF; totalMetaPos+=mP;
+      });
+      // Canais sem aba PMG
+      ['closer','martins','ka'].forEach(ch => {
         getChannelVendors(ch).forEach(nome => {
-          const m = META_OUTROS[nome] || {};
-          totalMetaFat += m.metaFat || 0;
-          totalMetaPos += m.metaPos || 0;
+          const m = META_OUTROS[nome]||{};
+          totalMetaFat += m.metaFat||0; totalMetaPos += m.metaPos||0;
         });
       });
+      // HAVA: canal 'hava' no META_OUTROS (já sem dupla contagem — SAMARA foi zerada)
+      const {mF:mFH,mP:mPH} = _sumCanal('hava');
+      totalMetaFat+=mFH; totalMetaPos+=mPH;
       // RCA
-      Object.entries(META_OUTROS).forEach(([nome, m]) => {
-        if (isRCA(nome)) { totalMetaFat += m.metaFat||0; totalMetaPos += m.metaPos||0; }
+      Object.entries(META_OUTROS).forEach(([nome,m]) => {
+        if (isRCA(nome) && !(m.nomeAba)) { totalMetaFat+=m.metaFat||0; totalMetaPos+=m.metaPos||0; }
       });
     }
+    // Adiciona meta dos HAVA PMG vendors (SAMARA etc.) do backup
+    // (foram zerados em META_OUTROS para evitar dupla contagem no canal, mas devem entrar no total)
+    if (window._sbHavaPmgMeta) {
+      const _seenHava = new Set();
+      Object.entries(window._sbHavaPmgMeta).forEach(([k,mf]) => {
+        // Usa nomeAba como chave de dedup
+        const _entry = META_OUTROS[k];
+        const _key = (_entry && _entry.nomeAba) || k;
+        if (_seenHava.has(_key)) return;
+        _seenHava.add(_key);
+        totalMetaFat += mf || 0;
+        console.log('🎯 HAVA PMG backup somado:',k,'=',mf);
+      });
+    }
+    console.log('🎯 KPI meta: totalMetaFat='+totalMetaFat+' GROUP='+GROUP);
   }
   const pctPos  = totalMetaPos > 0 ? Math.round((sumPositMes / totalMetaPos) * 100) : null;
   // Se cluster filtrado, sobrescreve totalMetaFat com a meta do cluster
@@ -2014,25 +2049,61 @@ function _render(){
     .filter(v => (DATA[v]||[]).length > 0)
     .filter(v => ACTIVE === 'all' || ACTIVE === v); // respeita vendedor ativo
 
+  // Helper dedup por canal (mesmo padrão do getMeta nos cards de canal)
+  const _sumCanalMeta = (canalNome) => {
+    const seen = new Set();
+    let mF = 0;
+    Object.entries(META_OUTROS).forEach(([k, m]) => {
+      if (!m || m.canal !== canalNome) return;
+      const key = m.nomeAba || k;
+      if (seen.has(key)) return;
+      seen.add(key);
+      mF += m.metaFat || 0;
+    });
+    return mF;
+  };
+
   // Metas canais — só se ACTIVE é 'all' (canais não têm vendedor individual)
   if (ACTIVE === 'all') {
-    CANAIS_META.filter(shouldIncludeCanal).forEach(ch => {
+    // PMG: farmer + developer — soma TODOS via canal (não depende de C.sh ou DATA)
+    if (GROUP === 'all' || GROUP === 'farmer') {
+      metaFatCanais += _sumCanalMeta('farmer');
+    }
+    if (GROUP === 'all' || GROUP === 'developer') {
+      metaFatCanais += _sumCanalMeta('developer');
+    }
+    // Canais sem aba PMG (closer, martins, ka)
+    CANAIS_META.filter(ch => ch !== 'hava').filter(shouldIncludeCanal).forEach(ch => {
       getChannelVendors(ch).forEach(nome => {
         metaFatCanais += (META_OUTROS[nome]||{}).metaFat || 0;
       });
     });
+    // HAVA: canal 'hava' no META_OUTROS + backup dos HAVA PMG vendors (ex: SAMARA)
+    if (GROUP === 'all' || GROUP === 'hava') {
+      metaFatCanais += _sumCanalMeta('hava');
+      // Soma meta dos HAVA PMG vendors (zerados em META_OUTROS mas guardados no backup)
+      if (window._sbHavaPmgMeta) {
+        const _seenHP = new Set();
+        Object.entries(window._sbHavaPmgMeta).forEach(([k,mf]) => {
+          const _entry = META_OUTROS[k];
+          const _key = (_entry && _entry.nomeAba) || k;
+          if (_seenHP.has(_key)) return;
+          _seenHP.add(_key);
+          metaFatCanais += mf || 0;
+        });
+      }
+    }
     // RCA
     if (GROUP === 'all' || GROUP === 'rca') {
       Object.entries(META_OUTROS).forEach(([nome, m]) => {
-        if (isRCA(nome)) metaFatCanais += m.metaFat || 0;
+        if (isRCA(nome) && !(m.nomeAba)) metaFatCanais += m.metaFat || 0;
       });
     }
+  } else {
+    // Vendedor individual ativo — meta dele direto
+    const mAtivo = META_OUTROS[ACTIVE] || {};
+    metaFatCanais += mAtivo.metaFat || 0;
   }
-  // FARMER + DEVELOPER + SAMARA das abas PMG (filtrado por vendedor ativo)
-  pmgExtraUniq.forEach(v => {
-    const vRaw = (DATA[v]||[]).map(r=>({...r,vendor:v}));
-    metaFatCanais += metaUltimoSalv(vRaw);
-  });
 
   // Faturamento MTD (sempre MTD, sem filtro de período)
   const allCanalNomesFat = ACTIVE === 'all' ? [
@@ -2076,6 +2147,7 @@ function _render(){
     {ico:'❌', lbl:'Não Venda',        sub:'Grupos Comerciais', val:cntNav,             kc:'var(--red)'},
   ];
   // ── KPIs linha MTD — sempre acumulado do mês
+  console.log('🎯 RENDER: totalMetaFat='+totalMetaFat+' totalMetaFatKpi='+totalMetaFatKpi+' metaFatCanais='+metaFatCanais+' metaFatCanaisKpi='+metaFatCanaisKpi);
   const kpisRow2 = [
     {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), sub2: totalMetaFatKpi>0?`Meta: ${fBRL(totalMetaFatKpi)}`:'', kc:'var(--blue2)', lg:true, ating},
     {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, sub2: totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:pctPos},
@@ -2103,12 +2175,25 @@ function _render(){
   if (mtdBar) {
     mtdBar.style.display = 'block';
 
+    // Mapa vendor abreviado → canal (construído do META_OUTROS)
+    // Permite filtrar VENDAS_V1 por canal sem depender de C.sh
+    const _vendorCanalMap = {};
+    Object.entries(META_OUTROS).forEach(([k, m]) => {
+      if (!m || !m.canal) return;
+      const key = m.nomeAba || k;
+      if (key) _vendorCanalMap[key] = m.canal;
+    });
+
     // Calcula fat+posit MTD para um conjunto de nomeVend ou vendors PMG (ou ambos)
-    const calcMtd = (pmgVendors, channelNomes) => {
+    const calcMtd = (pmgVendors, channelNomes, grpKey) => {
       const rows = VENDAS_V1.filter(r => {
         if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
-        if (channelNomes && channelNomes.includes(r.nomeVend)) { /* ok */ }
-        else if (pmgVendors && pmgVendors.length && pmgVendors.includes(r.vendor)) { /* ok */ }
+        if (channelNomes && channelNomes.includes(r.nomeVend)) { /* ok canal */ }
+        else if (grpKey && ['farmer','developer','hava'].includes(grpKey)) {
+          // Para grupos PMG: filtra por canal no META_OUTROS — não depende de C.sh
+          if (_vendorCanalMap[r.vendor] !== grpKey) return false;
+        }
+        else if (pmgVendors && pmgVendors.length && pmgVendors.includes(r.vendor)) { /* ok pmg */ }
         else return false;
         // Filtro de cluster
         if (CLUSTER_FILTER) {
@@ -2126,29 +2211,57 @@ function _render(){
     };
 
     // Metas por grupo
+    // Para PMG (farmer/developer/hava): soma TODOS os vendedores do canal em META_OUTROS,
+    // incluindo os que ainda não enviaram PMG — C.sh pode estar incompleto
+    const getMetaByCanal = (canalNome) => {
+      // canalNome: 'farmer', 'developer', 'hava'
+      let mFat=0, mPos=0;
+      // Itera META_OUTROS filtrando pelo canal — evita depender de C.sh
+      const seen = new Set();
+      Object.entries(META_OUTROS).forEach(([k, m]) => {
+        if (!m || !m.canal) return;
+        if (m.canal !== canalNome) return;
+        // Usa nomeAba como chave de dedup (evita contar nome completo + abreviado 2x)
+        const key = m.nomeAba || k;
+        if (seen.has(key)) return;
+        seen.add(key);
+        mFat += m.metaFat || 0;
+        mPos += m.metaPos || 0;
+      });
+      return { mFat, mPos };
+    };
+
     const getMeta = (pmgVendors, channelNomes, grpKey) => {
       let mFat=0, mPos=0;
-      // Canais via META_OUTROS
+
+      // PMG vendors: farmer / developer / hava — usa canal direto do META_OUTROS
+      if (pmgVendors && pmgVendors.length) {
+        if (grpKey === 'farmer') {
+          const m = getMetaByCanal('farmer'); mFat += m.mFat; mPos += m.mPos;
+        } else if (grpKey === 'developer') {
+          const m = getMetaByCanal('developer'); mFat += m.mFat; mPos += m.mPos;
+        } else if (grpKey === 'hava') {
+          const m = getMetaByCanal('hava'); mFat += m.mFat; mPos += m.mPos;
+        } else {
+          // Grupo misto (ex: all): soma por vendor individual
+          pmgVendors.forEach(v => {
+            const mD = META_OUTROS[v];
+            if (mD && mD.metaFat > 0) { mFat += mD.metaFat; mPos += mD.metaPos||0; return; }
+            const nomeC = Object.entries(VENDOR_MAP).find(([,ab]) => ab === v)?.[0];
+            if (nomeC) { const mF = META_OUTROS[nomeC]; if (mF) { mFat += mF.metaFat||0; mPos += mF.metaPos||0; } }
+          });
+        }
+      }
+
+      // Canais sem aba PMG (closer, martins, rca, ka) via META_OUTROS por nome
       if (channelNomes !== null) {
         if (grpKey === 'rca') {
           Object.entries(META_OUTROS).forEach(([nome, m]) => {
-            if (isRCA(nome)) { mFat+=m.metaFat||0; mPos+=m.metaPos||0; }
+            if (isRCA(nome) && !(m.nomeAba)) { mFat+=m.metaFat||0; mPos+=m.metaPos||0; }
           });
-        } else {
+        } else if (!['farmer','developer','hava'].includes(grpKey)) {
           channelNomes.forEach(n => { const m=META_OUTROS[n]||{}; mFat+=m.metaFat||0; mPos+=m.metaPos||0; });
         }
-      }
-      // PMG vendors (pode coexistir com canais, ex: HAVA tem SAMARA com aba PMG)
-      if (pmgVendors && pmgVendors.length) {
-        pmgVendors.filter(v=>(DATA[v]||[]).length>0).forEach(v => {
-          const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
-          const vAll=dedup(vRaw);
-          mFat+=metaUltimoSalv(vRaw);
-          const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
-          const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
-          const vMtd=vAll.filter(r=>r.date&&r.date>=vBest);
-          mPos+=vMtd.reduce((mx,r)=>Math.max(mx,r.metaPos||0),0);
-        });
       }
       return { mFat, mPos };
     };
@@ -2243,25 +2356,24 @@ function _render(){
       return new Set(rows.filter(r=>r.fat>0).map(r=>r.codClienteLoja)).size;
     };
     const calcAvacyMeta = (type) => {
+      if (type === 'fat') {
+        // Usa metaFatCanais — já calculado corretamente via _sumCanalMeta (todos os canais, sem filtro de DATA)
+        return metaFatCanais;
+      }
+      // Posit: mantém lógica existente via dados PMG + canais
       let m=0;
       getFarmerVendors().concat(DEVELOPER_VENDORS).concat(HAVA_PMG_VENDORS).filter(v=>(DATA[v]||[]).length>0).forEach(v=>{
         const vRaw=(DATA[v]||[]).map(r=>({...r,vendor:v}));
         const vAll=dedup(vRaw);
-        if(type==='fat') m+=metaUltimoSalv(vRaw);
-        else {
-          const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
-          const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
-          m+=vAll.filter(r=>r.date&&r.date>=vBest).reduce((mx,r)=>Math.max(mx,r.metaPos||0),0);
-        }
+        const vMax=vAll.reduce((mx,r)=>r.date&&r.date>mx?r.date:mx,new Date(0));
+        const vBest=vMax.getTime()>0?new Date(vMax.getFullYear(),vMax.getMonth(),1):iniMes2;
+        m+=vAll.filter(r=>r.date&&r.date>=vBest).reduce((mx,r)=>Math.max(mx,r.metaPos||0),0);
       });
-      // Canais não-RCA via allChannelNomesV1 (closer, martins, ka, hava)
       allChannelNomesV1.filter(n => !isRCA(n)).forEach(n=>{
-        const mt=META_OUTROS[n]||{};
-        if(type==='fat') m+=mt.metaFat||0; else m+=mt.metaPos||0;
+        const mt=META_OUTROS[n]||{}; m+=mt.metaPos||0;
       });
-      // RCA: soma TODAS as entradas de META_OUTROS que começam com "RCA"
       Object.entries(META_OUTROS).forEach(([nome, mt]) => {
-        if (isRCA(nome)) { if(type==='fat') m+=mt.metaFat||0; else m+=mt.metaPos||0; }
+        if (isRCA(nome)) m+=mt.metaPos||0;
       });
       return m;
     };
@@ -2300,12 +2412,12 @@ function _render(){
         const avacyMarg = type==='fat' ? calcMargProd(VENDAS_V1.filter(r=>r.date&&r.date>=iniMes2&&r.date<=fimMes2)) : null;
         const avacyCard = miniCard('AVACY', avacyVal, avacyMeta, type, 'all', true, type==='pos' ? { posit: pmgHavaPos, meta: pmgHavaMPos } : null, avacyMarg);
         const row1Cards = lvl1.map(g => {
-          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch);
+          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch,g.grp);
           const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
           return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false, null, type==='fat'?marg:null);
         }).join('');
         const row2Cards = lvl2.map(g => {
-          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch);
+          const {fat,posit,marg} = calcMtd(g.pmg||[],g.ch,g.grp);
           const {mFat,mPos} = getMeta(g.pmg||[],g.ch,g.grp);
           return miniCard(g.lbl, type==='fat'?fat:posit, type==='fat'?mFat:mPos, type, g.grp, false, null, type==='fat'?marg:null);
         }).join('');
@@ -2493,7 +2605,29 @@ function _render(){
       { key:'positivado',  lbl:'Venda',      col:'#1a8c4e' },
       { key:'nao_venda',   lbl:'Não Venda',  col:'#cc1a1a' },
     ];
-    const sortedV = [...getGroupVendors()].filter(v=>(DATA[v]||[]).length>0).sort((a,b)=>a.localeCompare(b));
+    // Mostra TODOS os vendors do grupo — incluindo quem não enviou PMG ainda
+    // Para farmer/developer: usa META_OUTROS por canal (não depende de C.sh)
+    let _allGroupV = [];
+    if (GROUP === 'farmer' || GROUP === 'developer') {
+      const _canalAlvo = GROUP; // 'farmer' ou 'developer'
+      const _seenGV = new Set();
+      Object.entries(META_OUTROS).forEach(([k, m]) => {
+        if (!m || m.canal !== _canalAlvo) return;
+        const key = m.nomeAba || k;
+        if (!key || _seenGV.has(key)) return;
+        _seenGV.add(key);
+        // Só inclui se for um vendor PMG conhecido (tem aba na planilha)
+        if (typeof C !== 'undefined') {
+          const shOrig = ['ADRIANO','ALEX','AUGUSTO','BRUNO','DEBORAH','DENIS','DOUGLAS',
+                          'JOYCE','LEANDRO','LUCAS','MARCELO','MATHEUS','NOA','RAFAEL',
+                          'ROSANE','SAMARA','THAIS','WESLEY','ALINE','CINTIA','KEULLY'];
+          if (shOrig.includes(key)) _allGroupV.push(key);
+        }
+      });
+    } else {
+      _allGroupV = getGroupVendors().filter(v => (DATA[v]||[]).length > 0);
+    }
+    const sortedV = _allGroupV.sort((a,b) => a.localeCompare(b));
     if (sortedV.length > 0) {
       mc.innerHTML+=`<div class="stitle" style="--al:#a855f7;margin-bottom:14px">Performance por Vendedor</div>
       <div class="vnd-g">${sortedV.map(v=>{
@@ -2508,7 +2642,25 @@ function _render(){
           ? `<span style="color:${s.atPos>=100?'#1a8c4e':s.atPos>=70?'#b87a00':'#cc1a1a'};font-weight:700">${s.atPos}%</span> posit`
           : '';
         // Último salvamento — usa aba CONSOLIDADO (fonte confiável, formato garantido DD/MM/YYYY HH:MM)
-        const lastSaveStr = CONSOLIDADO_DATAS[v] || '—';
+        // Últ. salvamento = data máxima de data_envio do pmg_carteiras (DATA[v])
+        // Usa dateRaw (string original) para preservar hora exata do envio
+        const lastSaveStr = (() => {
+          const vRows = DATA[v] || [];
+          if (vRows.length > 0) {
+            // Pega o registro com date mais recente
+            const maxRow = vRows.reduce((mx, r) => r.date && r.date > (mx.date||new Date(0)) ? r : mx, {});
+            if (maxRow.date && maxRow.dateRaw) {
+              // Parseia dateRaw (ex: "2026-05-12T13:37:26") e formata como DD/MM/YYYY HH:MM
+              const d = parseSupaDate(maxRow.dateRaw);
+              if (d) {
+                const pad = n => String(n).padStart(2,'0');
+                return pad(d.getDate())+'/'+pad(d.getMonth()+1)+'/'+d.getFullYear()+
+                       ' '+pad(d.getHours())+':'+pad(d.getMinutes());
+              }
+            }
+          }
+          return CONSOLIDADO_DATAS[v] || '—';
+        })();
 
         return `<div class="vnd" data-vendor="${v}" onclick="swV('${v}')" style="transition:all .25s;border-left:4px solid ${borderCol};${dimStyle}">
           <div class="vnd-h">
