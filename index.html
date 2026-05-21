@@ -234,11 +234,11 @@ tbody td:first-child{font-weight:700;color:var(--text)}
 <!-- MTD CARDS BAR -->
 <div id="mtd-bar" style="display:none;padding:14px 36px 16px;background:var(--white);border-bottom:1px solid var(--gray)">
   <div style="margin-bottom:14px">
-    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a3a8c;border-radius:2px"></span>💰 Faturamento MTD</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a3a8c;border-radius:2px"></span>💰 <span id="lbl-fat-section">Faturamento MTD</span></div>
     <div id="mtd-fat-row" style="display:flex;gap:8px;align-items:stretch;width:100%"></div>
   </div>
   <div>
-    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a8c4e;border-radius:2px"></span>✅ Positivação MTD</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:4px;height:20px;background:#1a8c4e;border-radius:2px"></span>✅ <span id="lbl-pos-section">Positivação MTD</span></div>
     <div id="mtd-pos-row" style="display:flex;gap:8px;align-items:stretch;width:100%"></div>
   </div>
   <div id="mtd-cards" style="display:none"></div>
@@ -427,15 +427,21 @@ async function loadMetaOutros(){
         META_OUTROS[nomeAba]=entry;
       }
 
-      // HAVA PMG: backup + zera para evitar dupla contagem
-      var isHavaPmg=nomeAba && _havaPmg.indexOf(nomeAba)>=0;
-      if(isHavaPmg && metaFat>0){
-        window._sbHavaPmgMeta[nome]=metaFat;
-        window._sbHavaPmgMeta[nomeAba]=metaFat;
-        var zeroed={metaFat:0,metaPos:0,canal:canal,nomeAba:nomeAba};
-        META_OUTROS[nome]=zeroed;
-        META_OUTROS[nomeAba]=zeroed;
-        console.log('🎯 HAVA PMG zeroed:',nome,'backup:',metaFat);
+      // HAVA PMG: canal='hava' E tem aba PMG (nomeAba preenchido)
+      // Agora canal é preservado corretamente como 'hava' no banco
+      var isHavaPmg = canal==='hava' && nomeAba && _havaPmg.indexOf(nomeAba)>=0;
+      if(isHavaPmg){
+        // Mantém metaFat no META_OUTROS para o card do vendedor encontrar diretamente
+        // Marca isHavaPmg=true para evitar dupla contagem em _sumCanalMeta e getMetaByCanal
+        entry.isHavaPmg=true;
+        META_OUTROS[nome]=entry;
+        if(nomeAba) META_OUTROS[nomeAba]=entry;
+        // Backup para compatibilidade
+        if(metaFat>0){
+          window._sbHavaPmgMeta[nome]=metaFat;
+          if(nomeAba) window._sbHavaPmgMeta[nomeAba]=metaFat;
+        }
+        console.log('🎯 HAVA PMG marcado:',nome,'nomeAba:',nomeAba,'metaFat:',metaFat);
       }
     }
 
@@ -862,7 +868,8 @@ async function loadVendasV1(){
       // Filtro JS: só registros cujo dt_execucao está no mês corrente
       var dMes=dExec||dFat;
       if(dMes<iniMesV1||dMes>fimMesV1){skippedMes++;continue;}
-      VENDAS_V1.push({vendor:VENDOR_MAP[n]||n,nomeVend:(typeof HAVA_PMG_VENDORS!=='undefined'&&typeof VENDOR_MAP!=='undefined'&&HAVA_PMG_VENDORS.indexOf(VENDOR_MAP[n]||n)>=0)?(VENDOR_MAP[n]||n):n,codClienteLoja:(r.cod_cliente_loja||'').trim(),codGC:String(r.cod_gc||'').trim().replace(/\.0+$/,''),fat:parseFloat(r.faturamento)||0,custo:parseFloat(r.custo)||0,imposto:parseFloat(r.imposto)||0,date:d,dateStr:r.dt_execucao||r.data_fat||'',execStr:r.dt_execucao||''});
+      var _dateFat = parseSupaDate(r.data_fat); // competência ou dia real se disponível
+      VENDAS_V1.push({vendor:VENDOR_MAP[n]||n,nomeVend:(typeof HAVA_PMG_VENDORS!=='undefined'&&typeof VENDOR_MAP!=='undefined'&&HAVA_PMG_VENDORS.indexOf(VENDOR_MAP[n]||n)>=0)?(VENDOR_MAP[n]||n):n,codClienteLoja:(r.cod_cliente_loja||'').trim(),codGC:String(r.cod_gc||'').trim().replace(/\.0+$/,''),fat:parseFloat(r.faturamento)||0,custo:parseFloat(r.custo)||0,imposto:parseFloat(r.imposto)||0,date:d,dateFat:_dateFat,dateStr:r.dt_execucao||r.data_fat||'',execStr:r.dt_execucao||''});
     }
     console.log('🗓️ VENDAS_V1 após filtro JS:',VENDAS_V1.length,'skipped(outro mes):',skippedMes);
     if(VENDAS_V1.length>0){
@@ -1397,7 +1404,25 @@ function fltPeriodByDate(rows){
     return rows.filter(r => r.date && localDK(r.date) === hoje);
   }
   if(PERIOD==='custom'){
-    return rows.filter(r=>{
+    // Se D_FROM e D_TO são o mesmo dia (filtro de dia único) ou intervalo de dias do mês corrente,
+    // verifica se o dia está nos DIAS CONTATO ou DIAS VENDA do cliente
+    // Se D_FROM/D_TO estão em meses diferentes da data_envio, usa fallback por data_envio
+    const now = new Date();
+    const curMes = now.getFullYear() * 100 + now.getMonth();
+    const fromMes = D_FROM ? D_FROM.getFullYear() * 100 + D_FROM.getMonth() : null;
+    const toMes   = D_TO   ? D_TO.getFullYear()   * 100 + D_TO.getMonth()   : null;
+    const useDayFilter = fromMes !== null && fromMes === curMes && toMes === curMes;
+
+    return rows.filter(r => {
+      if (useDayFilter) {
+        // Filtra por DIAS CONTATO/VENDA dentro do intervalo de dias
+        const fromDay = D_FROM ? D_FROM.getDate() : 1;
+        const toDay   = D_TO   ? D_TO.getDate()   : 31;
+        const dvDays = parseDays(r.diasVenda);
+        const coDays = parseDays(r.contato);
+        return [...dvDays, ...coDays].some(d => d >= fromDay && d <= toDay);
+      }
+      // Fallback: filtra por data_envio (mês diferente do corrente)
       if(!r.date) return false;
       if(D_FROM && r.date<D_FROM) return false;
       if(D_TO   && r.date>D_TO)   return false;
@@ -1441,7 +1466,25 @@ function fltPeriod(rows){
   }
 
   if(PERIOD==='custom'){
-    return rows.filter(r=>{
+    // Se D_FROM e D_TO são o mesmo dia (filtro de dia único) ou intervalo de dias do mês corrente,
+    // verifica se o dia está nos DIAS CONTATO ou DIAS VENDA do cliente
+    // Se D_FROM/D_TO estão em meses diferentes da data_envio, usa fallback por data_envio
+    const now = new Date();
+    const curMes = now.getFullYear() * 100 + now.getMonth();
+    const fromMes = D_FROM ? D_FROM.getFullYear() * 100 + D_FROM.getMonth() : null;
+    const toMes   = D_TO   ? D_TO.getFullYear()   * 100 + D_TO.getMonth()   : null;
+    const useDayFilter = fromMes !== null && fromMes === curMes && toMes === curMes;
+
+    return rows.filter(r => {
+      if (useDayFilter) {
+        // Filtra por DIAS CONTATO/VENDA dentro do intervalo de dias
+        const fromDay = D_FROM ? D_FROM.getDate() : 1;
+        const toDay   = D_TO   ? D_TO.getDate()   : 31;
+        const dvDays = parseDays(r.diasVenda);
+        const coDays = parseDays(r.contato);
+        return [...dvDays, ...coDays].some(d => d >= fromDay && d <= toDay);
+      }
+      // Fallback: filtra por data_envio (mês diferente do corrente)
       if(!r.date) return false;
       if(D_FROM && r.date<D_FROM) return false;
       if(D_TO   && r.date>D_TO)   return false;
@@ -1786,6 +1829,25 @@ function _render(){
     }
     return base;
   })();
+  // Helper: extrai intervalo de dias do período selecionado — escopo global do render
+  const _getPeriodDays = () => {
+    if (PERIOD === 'all' || PERIOD === 'mtd') return null;
+    if (PERIOD === 'hoje') return { from: new Date().getDate(), to: new Date().getDate() };
+    if (PERIOD === '1') { const d = new Date().getDate()-1; return d>0?{from:d,to:d}:null; }
+    if (PERIOD === 'custom' && D_FROM && D_TO) {
+      const now = new Date();
+      if (D_FROM.getFullYear()===now.getFullYear() && D_FROM.getMonth()===now.getMonth()) {
+        return { from: D_FROM.getDate(), to: D_TO.getDate() };
+      }
+    }
+    if (!isNaN(parseInt(PERIOD))) {
+      const hoje = new Date().getDate();
+      return { from: Math.max(1, hoje - parseInt(PERIOD) + 1), to: hoje };
+    }
+    return null;
+  };
+  const _pDays = _getPeriodDays();
+
   _vsVendors.forEach(v => {
     const vdRaw  = getRaw(v); // dados brutos sem dedup — necessário para meta correta
     const vdAll  = dedup(vdRaw);
@@ -1803,8 +1865,18 @@ function _render(){
     const vMetaFat = (() => {
       const mDirect = META_OUTROS[v];
       if (mDirect && mDirect.metaFat > 0) return mDirect.metaFat;
-      // Backup HAVA PMG
-      if (window._sbHavaPmgMeta && window._sbHavaPmgMeta[v] > 0) return window._sbHavaPmgMeta[v];
+      // Backup HAVA PMG — busca por nome abreviado (v) E por nome completo
+      if (window._sbHavaPmgMeta) {
+        if (window._sbHavaPmgMeta[v] > 0) return window._sbHavaPmgMeta[v];
+        // Busca pelo nome completo no VENDOR_MAP
+        const _nc = Object.entries(VENDOR_MAP).find(([,ab]) => ab === v)?.[0];
+        if (_nc && window._sbHavaPmgMeta[_nc] > 0) return window._sbHavaPmgMeta[_nc];
+        // Busca por qualquer entrada que tenha nomeAba === v
+        for (const [k, mf] of Object.entries(window._sbHavaPmgMeta)) {
+          const _e = META_OUTROS[k];
+          if (_e && _e.nomeAba === v && mf > 0) return mf;
+        }
+      }
       // Fallback PMG
       return metaUltimoSalv(vdRaw);
     })();
@@ -1823,15 +1895,60 @@ function _render(){
     const vPositMtd = vPositSet.size;
     const vAtingFat = vMetaFat > 0 ? Math.round((vFat / vMetaFat) * 100) : null;
     const vAtingPos = vMetaPos > 0 ? Math.round((vPositMtd / vMetaPos) * 100) : null;
+    // _pDays definido no escopo do render (antes do loop)
+
+    // Diagnóstico: log para AUGUSTO
+    if (v === 'AUGUSTO' && _pDays) {
+      const _aug = vdAll.filter(r => r.contato && r.contato.trim());
+      console.log('🔍 AUGUSTO contato _pDays:', JSON.stringify(_pDays));
+      console.log('🔍 AUGUSTO linhas com contato:', _aug.length);
+      _aug.slice(0,3).forEach(r => console.log('🔍 contato sample:', JSON.stringify({client:r.client, contato:r.contato, parseDays:parseDays(r.contato)})));
+    }
+
     // Clientes distintos por cod_gc — respeita filtro de período
-    // Carteira: clientes distintos com carteira='sim' (período all — sempre o total da carteira)
-    const _cartSet  = new Set(vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim()==='sim').map(r=>r.client).filter(Boolean));
-    // Contato: clientes distintos com contato preenchido no período filtrado
-    const _contSet  = new Set(vd.filter(r => r.contato && r.contato.trim()).map(r=>r.client).filter(Boolean));
-    // Venda (positivado): clientes distintos com venda no período (via vendas_v1)
-    const _vendSet  = new Set(v1Period.filter(r => r.vendor===v && r.fat>0).map(r=>r.codGC).filter(Boolean));
-    // Não venda: clientes distintos com motivo preenchido no período filtrado por data
-    const _nvSet    = new Set(vdDate.filter(r => r.motivo && r.motivo.trim()).map(r=>r.client).filter(Boolean));
+    // Carteira: sempre total (não filtra por dia)
+    const _cartSet = new Set(vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim()==='sim').map(r=>r.client).filter(Boolean));
+
+    // Contato: clientes com DIAS CONTATO dentro do período
+    const _contSet = new Set(vdAll.filter(r => {
+      if (!r.contato || !r.contato.trim()) return false;
+      if (!_pDays) return true; // sem filtro de dia → todos
+      const coDays = parseDays(r.contato);
+      return coDays.some(d => d >= _pDays.from && d <= _pDays.to);
+    }).map(r => r.client).filter(Boolean));
+
+    // Venda: clientes distintos com faturamento > 0
+    // Filtro de dia: conta cod_gc distintos em vendas_v1 onde dt_execucao é do dia filtrado
+    // MTD/all: usa v1Period (mês inteiro)
+    const _vendSet = (() => {
+      if (_pDays) {
+        // Filtra vendas_v1 pelo dia exato via dt_execucao (data real da venda)
+        return new Set(
+          VENDAS_V1.filter(r => {
+            if (!r.fat || r.fat <= 0) return false;
+            if (r.vendor !== v && r.nomeVend !== _nomeCompleto) return false;
+            if (!r.date) return false;
+            const hoje = new Date();
+            // Verifica se o dia da data_fat está dentro do intervalo filtrado E no mês corrente
+            // Usa dateFat (data real da venda) — se for competência (dia 1), usa dt_execucao
+            const refDate = (r.dateFat && r.dateFat.getDate() > 1) ? r.dateFat : r.date;
+            if (!refDate) return false;
+            const rDay2 = refDate.getDate();
+            const rMes2 = refDate.getMonth();
+            const rAno2 = refDate.getFullYear();
+            return rAno2 === hoje.getFullYear() &&
+                   rMes2 === hoje.getMonth() &&
+                   rDay2 >= _pDays.from &&
+                   rDay2 <= _pDays.to;
+          }).map(r => r.codGC).filter(Boolean)
+        );
+      }
+      // MTD/all: usa v1Period (já filtrado por mês e grupo)
+      return new Set(v1Period.filter(r => r.vendor===v && r.fat>0).map(r=>r.codGC).filter(Boolean));
+    })();
+
+    // Não venda: clientes com motivo no período por data_envio
+    const _nvSet = new Set(vdDate.filter(r => r.motivo && r.motivo.trim()).map(r=>r.client).filter(Boolean));
 
     vs[v] = {
       fat:         vFat,
@@ -1852,22 +1969,54 @@ function _render(){
 
   // ── FATURAMENTO MTD e POSITIVADO MTD — fonte: aba vendas_v1
 
+  // Mapa vendor abreviado → canal — usado em v1Filt e calcMtd
+  const _vendorCanalMap = {};
+  Object.entries(META_OUTROS).forEach(([k, m]) => {
+    if (!m || !m.canal) return;
+    const key = m.nomeAba || k;
+    if (key) _vendorCanalMap[key] = m.canal;
+  });
+
   const v1Filt = VENDAS_V1.filter(r => {
     if (!r.date || r.date < iniMes2 || r.date > fimMes2) return false;
     if (ACTIVE !== 'all' && r.vendor !== ACTIVE) return false;
     if (ACTIVE === 'all') {
       if (CHANNELS.includes(GROUP)) return getChannelVendors(GROUP).includes(r.nomeVend);
       if (GROUP === 'hava') return getChannelVendors('hava').includes(r.nomeVend) || HAVA_PMG_VENDORS.includes(r.vendor);
-      if (GROUP === 'farmer') return getFarmerVendors().includes(r.vendor);
-      if (GROUP === 'developer') return DEVELOPER_VENDORS.includes(r.vendor);
+      if (GROUP === 'farmer') return _vendorCanalMap[r.vendor] === 'farmer';
+      if (GROUP === 'developer') return _vendorCanalMap[r.vendor] === 'developer';
       return true;
     }
     return true;
   }).filter(r => {
-    // Filtro de cluster — usa gcClusterMapGlobal construído no render
+    // Filtro de período — respeita seleção do usuário
+    if (PERIOD === 'all' || PERIOD === 'mtd') return true;
+    const now2 = new Date();
+    if (PERIOD === 'hoje') {
+      return r.date && localDK(r.date) === localDK(now2);
+    }
+    if (PERIOD === 'custom') {
+      const [dA, dB] = (window._customRange || [null, null]);
+      return r.date && dA && dB && r.date >= dA && r.date <= dB;
+    }
+    if (PERIOD === '1') {
+      const ontem = new Date(now2); ontem.setDate(ontem.getDate() - 1);
+      const ontemStr = localDK(ontem);
+      const maxDay = VENDAS_V1.reduce((mx, x) => x.date && x.date > mx ? x.date : mx, new Date(0));
+      const target = localDK(maxDay) === localDK(now2) ? ontemStr : localDK(maxDay);
+      return r.date && localDK(r.date) === target;
+    }
+    if (!isNaN(parseInt(PERIOD))) {
+      const cut = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - parseInt(PERIOD) + 1);
+      return r.date && r.date >= cut;
+    }
+    return true;
+  }).filter(r => {
+    // Filtro de cluster
     if (!CLUSTER_FILTER) return true;
     const gc = (r.codGC||'').trim();
-    const gcN = gc.replace(/\.0+$/, ''); const cl = window._gcClusterMapGlobal?.[gcN] || window._gcClusterMapGlobal?.[gc] || 'DEMAIS';
+    const gcN = gc.replace(/\.0+$/, '');
+    const cl = window._gcClusterMapGlobal?.[gcN] || window._gcClusterMapGlobal?.[gc] || 'DEMAIS';
     const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
     return clKey === CLUSTER_FILTER;
   });
@@ -1954,13 +2103,26 @@ function _render(){
         totalMetaPos += m.metaPos || 0;
       });
     }
-    // Se HAVA: inclui também meta das abas PMG (SAMARA)
+    // Se HAVA: inclui também meta das abas PMG (SAMARA) via backup
     if (GROUP === 'hava') {
-      HAVA_PMG_VENDORS.forEach(v => {
-        const m = getMetaPmgVendor(v);
-        totalMetaFat += m.metaFat || 0;
-        totalMetaPos += m.metaPos || 0;
-      });
+      const _seenHavaPmg = new Set();
+      // Usa _sbHavaPmgMeta (backup) pois META_OUTROS foi zerado para evitar dupla contagem
+      if (window._sbHavaPmgMeta) {
+        Object.entries(window._sbHavaPmgMeta).forEach(([k,mf]) => {
+          const _entry = META_OUTROS[k];
+          const _key = (_entry && _entry.nomeAba) || k;
+          if (_seenHavaPmg.has(_key)) return;
+          _seenHavaPmg.add(_key);
+          totalMetaFat += mf || 0;
+        });
+      } else {
+        // Fallback: busca direto
+        HAVA_PMG_VENDORS.forEach(v => {
+          const m = getMetaPmgVendor(v);
+          totalMetaFat += m.metaFat || 0;
+          totalMetaPos += m.metaPos || 0;
+        });
+      }
     }
   } else {
     // GROUP = all, farmer, developer — soma por canal no META_OUTROS (não depende de C.sh)
@@ -1969,6 +2131,7 @@ function _render(){
       let mF=0, mP=0;
       Object.entries(META_OUTROS).forEach(([k,m]) => {
         if (!m||m.canal!==canalNome) return;
+        if (m.isHavaPmg) return; // evita dupla contagem com backup
         const key = m.nomeAba||k;
         if (seen.has(key)) return;
         seen.add(key);
@@ -2055,6 +2218,7 @@ function _render(){
     let mF = 0;
     Object.entries(META_OUTROS).forEach(([k, m]) => {
       if (!m || m.canal !== canalNome) return;
+      if (m.isHavaPmg) return; // evita dupla contagem — SAMARA entra via backup
       const key = m.nomeAba || k;
       if (seen.has(key)) return;
       seen.add(key);
@@ -2149,8 +2313,8 @@ function _render(){
   // ── KPIs linha MTD — sempre acumulado do mês
   console.log('🎯 RENDER: totalMetaFat='+totalMetaFat+' totalMetaFatKpi='+totalMetaFatKpi+' metaFatCanais='+metaFatCanais+' metaFatCanaisKpi='+metaFatCanaisKpi);
   const kpisRow2 = [
-    {ico:'💰', lbl:'Faturamento MTD', val:fBRL(totValMtd), sub2: totalMetaFatKpi>0?`Meta: ${fBRL(totalMetaFatKpi)}`:'', kc:'var(--blue2)', lg:true, ating},
-    {ico:'✅', lbl:'Positivado MTD',  val:sumPositMes||cntPos, sub2: totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:pctPos},
+    {ico:'💰', lbl:`Faturamento ${PERIOD==='all'||PERIOD==='mtd'?'MTD':'Período'}`, val:fBRL(totValMtd), sub2: (PERIOD==='all'||PERIOD==='mtd')&&totalMetaFatKpi>0?`Meta: ${fBRL(totalMetaFatKpi)}`:'', kc:'var(--blue2)', lg:true, ating:(PERIOD==='all'||PERIOD==='mtd')?ating:null},
+    {ico:'✅', lbl:`Positivado ${PERIOD==='all'||PERIOD==='mtd'?'MTD':'Período'}`,  val:sumPositMes||cntPos, sub2: (PERIOD==='all'||PERIOD==='mtd')&&totalMetaPos>0?`Meta: ${totalMetaPos}`:'', kc:'var(--g-pos)', lg:true, ating:(PERIOD==='all'||PERIOD==='mtd')?pctPos:null},
   ];
 
   const kpiHtml = (k) => `
@@ -2175,15 +2339,7 @@ function _render(){
   if (mtdBar) {
     mtdBar.style.display = 'block';
 
-    // Mapa vendor abreviado → canal (construído do META_OUTROS)
-    // Permite filtrar VENDAS_V1 por canal sem depender de C.sh
-    const _vendorCanalMap = {};
-    Object.entries(META_OUTROS).forEach(([k, m]) => {
-      if (!m || !m.canal) return;
-      const key = m.nomeAba || k;
-      if (key) _vendorCanalMap[key] = m.canal;
-    });
-
+    // _vendorCanalMap definido no escopo do render (antes de v1Filt)
     // Calcula fat+posit MTD para um conjunto de nomeVend ou vendors PMG (ou ambos)
     const calcMtd = (pmgVendors, channelNomes, grpKey) => {
       const rows = VENDAS_V1.filter(r => {
@@ -2214,14 +2370,13 @@ function _render(){
     // Para PMG (farmer/developer/hava): soma TODOS os vendedores do canal em META_OUTROS,
     // incluindo os que ainda não enviaram PMG — C.sh pode estar incompleto
     const getMetaByCanal = (canalNome) => {
-      // canalNome: 'farmer', 'developer', 'hava'
       let mFat=0, mPos=0;
-      // Itera META_OUTROS filtrando pelo canal — evita depender de C.sh
       const seen = new Set();
       Object.entries(META_OUTROS).forEach(([k, m]) => {
         if (!m || !m.canal) return;
         if (m.canal !== canalNome) return;
-        // Usa nomeAba como chave de dedup (evita contar nome completo + abreviado 2x)
+        // Pula HAVA PMG vendors (ex: SAMARA) — evita dupla contagem com backup
+        if (m.isHavaPmg) return;
         const key = m.nomeAba || k;
         if (seen.has(key)) return;
         seen.add(key);
@@ -2241,7 +2396,18 @@ function _render(){
         } else if (grpKey === 'developer') {
           const m = getMetaByCanal('developer'); mFat += m.mFat; mPos += m.mPos;
         } else if (grpKey === 'hava') {
+          // Canal hava: soma META_OUTROS com canal='hava' + backup HAVA PMG vendors (ex: SAMARA)
           const m = getMetaByCanal('hava'); mFat += m.mFat; mPos += m.mPos;
+          if (window._sbHavaPmgMeta) {
+            const _seenH = new Set();
+            Object.entries(window._sbHavaPmgMeta).forEach(([k,mf]) => {
+              const _entry = META_OUTROS[k];
+              const _key = (_entry && _entry.nomeAba) || k;
+              if (_seenH.has(_key)) return;
+              _seenH.add(_key);
+              mFat += mf || 0;
+            });
+          }
         } else {
           // Grupo misto (ex: all): soma por vendor individual
           pmgVendors.forEach(v => {
@@ -2388,6 +2554,12 @@ function _render(){
       { lbl:'HAVA',      pmg: HAVA_PMG_VENDORS,          ch: getChannelVendors('hava'),   grp:'hava'      },
     ];
 
+    // Atualiza labels das seções conforme período
+    const _periodLbl = (PERIOD==='all'||PERIOD==='mtd') ? 'MTD' : 'Período';
+    const _lblFat = document.getElementById('lbl-fat-section');
+    const _lblPos = document.getElementById('lbl-pos-section');
+    if (_lblFat) _lblFat.textContent = 'Faturamento ' + _periodLbl;
+    if (_lblPos) _lblPos.textContent = 'Positivação ' + _periodLbl;
     const fatRow = document.getElementById('mtd-fat-row');
     const posRow = document.getElementById('mtd-pos-row');
     if (fatRow && posRow) {
@@ -2775,15 +2947,31 @@ function _render(){
       })
       .sort((a,b) => (b.fat||0) - (a.fat||0));
   } else {
+    // Para filtros de dia específico (hoje, ontem, custom), filtra também pelo v1PeriodMap
+    // — mostra só clientes com atividade (faturamento OU contato/venda PMG) no período
+    const _isPeriodDay = _pDays !== null || (PERIOD !== 'all' && PERIOD !== 'mtd');
     rawForTable = dedupGlobal(fltPeriod(allRaw))
       .filter(r => {
-        // Aplica filtro de cluster usando o mesmo mapa global (mesma fonte da vendas_v1)
-        if (!CLUSTER_FILTER) return true;
-        const gc = String(r.client||'').trim().replace(/\.0+$/,'');
-        const gcMap = window._gcClusterMapGlobal || {};
-        const cl = gcMap[gc] || 'DEMAIS';
-        const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
-        return clKey === CLUSTER_FILTER;
+        // Filtro de cluster
+        if (CLUSTER_FILTER) {
+          const gc = String(r.client||'').trim().replace(/\.0+$/,'');
+          const gcMap = window._gcClusterMapGlobal || {};
+          const cl = gcMap[gc] || 'DEMAIS';
+          const clKey = ['DIAMANTE','OURO'].includes(cl) ? cl : 'DEMAIS';
+          if (clKey !== CLUSTER_FILTER) return false;
+        }
+        // Para período de dia específico: só mostra clientes com faturamento OU atividade PMG
+        if (_isPeriodDay && PERIOD !== 'all' && PERIOD !== 'mtd') {
+          const gc = (r.client||'').trim();
+          const temFat = (v1PeriodMap[gc] || 0) > 0;
+          // Atividade PMG: contato ou venda no período
+          const _pD = _pDays || { from: new Date().getDate(), to: new Date().getDate() };
+          const coDays = parseDays(r.contato);
+          const dvDays = parseDays(r.diasVenda);
+          const temAtivPMG = [...coDays, ...dvDays].some(d => d >= _pD.from && d <= _pD.to);
+          return temFat || temAtivPMG;
+        }
+        return true;
       })
       .sort((a,b) => {
         const fatA = v1PeriodMap[(a.client||'').trim()] || 0;
