@@ -125,13 +125,13 @@ main{padding:26px 36px;max-width:1600px;margin:0 auto;min-width:0}
 .fn-pc{font-family:'Roboto Mono',monospace;font-size:12px;font-weight:500;color:var(--text3);width:40px;text-align:right;flex-shrink:0}
 
 /* ── VENDOR CARDS ── */
-.vnd-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-bottom:22px}
+.vnd-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;margin-bottom:22px}
 .vnd{background:var(--white);border-radius:var(--r);padding:18px;box-shadow:var(--sh);cursor:pointer;transition:all .2s;border-left:4px solid var(--blue)}
 .vnd:hover{transform:translateY(-2px);box-shadow:var(--sh2);border-left-color:var(--red)}
 .vnd-h{display:flex;align-items:center;gap:11px;margin-bottom:14px}
 .vnd-av{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--blue2));display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:#fff;flex-shrink:0}
 .vnd-nm{font-size:15px;font-weight:800;color:var(--text)}.vnd-sb{font-size:11px;color:var(--text3);font-family:'Roboto Mono',monospace}
-.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mini{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .mini-s{background:var(--off);border-radius:6px;padding:7px 4px;text-align:center}
 .mini-v{font-family:'Roboto Mono',monospace;font-size:16px;font-weight:500}
 .mini-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-top:2px}
@@ -1916,13 +1916,25 @@ function _render(){
     // Carteira: sempre total (não filtra por dia)
     const _cartSet = new Set(vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim()==='sim').map(r=>r.client).filter(Boolean));
 
-    // Contato: clientes com DIAS CONTATO dentro do período
+    // Contato: clientes com DIAS CONTATO dentro do período (clientes distintos)
     const _contSet = new Set(vdAll.filter(r => {
       if (!r.contato || !r.contato.trim()) return false;
-      if (!_pDays) return true; // sem filtro de dia → todos
+      if (!_pDays) return true;
       const coDays = parseDays(r.contato);
       return coDays.some(d => d >= _pDays.from && d <= _pDays.to);
     }).map(r => r.client).filter(Boolean));
+
+    // Nº Cont: soma de TODOS os contatos (cliente pode ter sido contatado vários dias)
+    let _numContatos = 0;
+    vdAll.forEach(r => {
+      if (!r.contato || !r.contato.trim()) return;
+      const coDays = parseDays(r.contato);
+      if (!_pDays) {
+        _numContatos += coDays.length;
+      } else {
+        _numContatos += coDays.filter(d => d >= _pDays.from && d <= _pDays.to).length;
+      }
+    });
 
     // Venda: clientes distintos com faturamento > 0
     // Filtro de dia: conta cod_gc distintos em vendas_v1 onde dt_execucao é do dia filtrado
@@ -1972,6 +1984,7 @@ function _render(){
       atPos:       vAtingPos,
       em_carteira: _cartSet.size,
       em_contato:  _contSet.size,
+      num_contatos: _numContatos,
       positivado:  _vendSet.size,
       nao_venda:   _nvSet.size,
     };
@@ -2785,10 +2798,11 @@ function _render(){
   // Vendor breakdown (PMG) — sempre mostra todos, com transparência para não selecionados
   if(!CHANNELS.includes(GROUP)){
     const MINI_ORDER = [
-      { key:'em_carteira', lbl:'Carteira',   col:'#b87a00' },
-      { key:'em_contato',  lbl:'Contato',    col:'#1a3a8c' },
-      { key:'positivado',  lbl:'Venda',      col:'#1a8c4e' },
-      { key:'nao_venda',   lbl:'Não Venda',  col:'#cc1a1a' },
+      { key:'em_carteira',  lbl:'Carteira',   col:'#b87a00' },
+      { key:'em_contato',   lbl:'Contato',    col:'#1a3a8c' },
+      { key:'num_contatos', lbl:'Nº Cont',    col:'#5a7ec4' },
+      { key:'positivado',   lbl:'Venda',      col:'#1a8c4e' },
+      { key:'nao_venda',    lbl:'Não Venda',  col:'#cc1a1a' },
     ];
     // Mostra TODOS os vendors do grupo — incluindo quem não enviou PMG ainda
     // Para farmer/developer: usa META_OUTROS por canal (não depende de C.sh)
