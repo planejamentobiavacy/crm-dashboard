@@ -1913,8 +1913,8 @@ function _render(){
     }
 
     // Clientes distintos por cod_gc — respeita filtro de período
-    // Carteira: sempre total (não filtra por dia)
-    const _cartSet = new Set(vdAll.filter(r => r.carteira && r.carteira.toLowerCase().trim()==='sim').map(r=>r.client).filter(Boolean));
+    // Carteira: total de GCs distintos na aba do vendedor (todos os clientes da carteira)
+    const _cartSet = new Set(vdAll.map(r => r.client).filter(Boolean));
 
     // Contato: clientes com DIAS CONTATO dentro do período (clientes distintos)
     const _contSet = new Set(vdAll.filter(r => {
