@@ -1904,12 +1904,13 @@ function _render(){
     const vAtingPos = vMetaPos > 0 ? Math.round((vPositMtd / vMetaPos) * 100) : null;
     // _pDays definido no escopo do render (antes do loop)
 
-    // Diagnóstico: log para AUGUSTO
-    if (v === 'AUGUSTO' && _pDays) {
-      const _aug = vdAll.filter(r => r.contato && r.contato.trim());
-      console.log('🔍 AUGUSTO contato _pDays:', JSON.stringify(_pDays));
-      console.log('🔍 AUGUSTO linhas com contato:', _aug.length);
-      _aug.slice(0,3).forEach(r => console.log('🔍 contato sample:', JSON.stringify({client:r.client, contato:r.contato, parseDays:parseDays(r.contato)})));
+    // Diagnóstico para DEBORAH
+    if (v === 'DEBORAH') {
+      console.log('🔍 DEBORAH vdRaw='+vdRaw.length+' vdAll(dedup)='+vdAll.length);
+      const _gcs = new Set(vdAll.map(r=>r.client).filter(Boolean));
+      const _gcsRaw = new Set(vdRaw.map(r=>r.client).filter(Boolean));
+      console.log('🔍 DEBORAH GCs distintos: vdAll='+_gcs.size+' vdRaw='+_gcsRaw.size);
+      console.log('🔍 DEBORAH amostra GCs:', [..._gcs].slice(0,5).join(','));
     }
 
     // Clientes distintos por cod_gc — respeita filtro de período
