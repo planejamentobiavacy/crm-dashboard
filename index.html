@@ -422,9 +422,16 @@ async function loadMetaOutros(){
       // Indexa pelo nome completo
       META_OUTROS[nome]=entry;
 
+      // Log debug para ALEX
+      if (nome.indexOf('ALEX')>=0 || nomeAba==='ALEX') {
+        console.log('🔍 META_OUTROS row ALEX:', JSON.stringify({nome:nome, nomeAba:nomeAba, metaFat:metaFat, canal:canal, raw:r}));
+      }
       // Indexa pelo nomeAba (ex: ADRIANO) para lookup direto no render
-      if(nomeAba && !META_OUTROS[nomeAba]){
-        META_OUTROS[nomeAba]=entry;
+      // Se já existe entrada com a chave nomeAba, mantém a de maior metaFat (caso de homônimos)
+      if(nomeAba){
+        if(!META_OUTROS[nomeAba] || (META_OUTROS[nomeAba].metaFat||0) < metaFat){
+          META_OUTROS[nomeAba]=entry;
+        }
       }
 
       // HAVA PMG: canal='hava' E tem aba PMG (nomeAba preenchido)
@@ -1950,13 +1957,10 @@ function _render(){
     // Não venda: clientes distintos com motivo preenchido (GC distinto da aba do vendedor)
     const _nvRows = vdAll.filter(r => r.motivo && r.motivo.trim());
     const _nvSet = new Set(_nvRows.map(r => (r.client||'').trim().replace(/\.0+$/,'')).filter(Boolean));
-    if (v === 'ADRIANO') {
-      console.log('🔍 ADRIANO nao_venda: vdAll='+vdAll.length+' _nvRows='+_nvRows.length+' _nvSet='+_nvSet.size);
-      // Mostra primeiros 3 registros completos para ver todos os campos
-      vdAll.slice(0,3).forEach((r,i) => console.log('🔍 vdAll['+i+']:', JSON.stringify(r)));
-      // Mostra quantos têm motivo preenchido
-      var _comMot = vdAll.filter(r => r.motivo && r.motivo.trim() && r.motivo !== '');
-      console.log('🔍 com motivo preenchido:', _comMot.length, 'primeiro:', _comMot[0]?_comMot[0].motivo:'nenhum');
+    if (v === 'AUGUSTO') {
+      var _comCont = vdAll.filter(r => r.contato && r.contato.trim());
+      console.log('🔍 AUGUSTO contato: vdAll='+vdAll.length+' com_contato='+_comCont.length);
+      vdAll.slice(0,2).forEach((r,i) => console.log('🔍 AUGUSTO vdAll['+i+']:', JSON.stringify({client:r.client,contato:r.contato,diasVenda:r.diasVenda,carteira:r.carteira})));
     }
 
     vs[v] = {
