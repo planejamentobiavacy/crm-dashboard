@@ -2746,6 +2746,7 @@ function _render(){
       }).join('');
 
       // Cards de faturamento por cluster
+      // DEMAIS: oculta meta e % (não tem meta específica relevante)
       const clusterFatCardsHtml = CLUSTERS.map(({key, lbl, color}) => {
         const fat  = fatByCluster[key]  || 0;
         const meta = metaByCluster[key] || 0;
@@ -2755,12 +2756,13 @@ function _render(){
         const isActive = CLUSTER_FILTER === key;
         const bg = isActive ? '#e8eef9' : 'var(--white)';
         const borderExtra = isActive ? `border:2px solid #1a3a8c;` : 'border:2px solid var(--gray2);';
+        const showMeta = key !== 'DEMAIS'; // DEMAIS não mostra meta nem %
         return `<div onclick="setCluster('${key}')" style="width:192px;flex-shrink:0;background:${bg};${borderExtra}border-radius:10px;border-top:4px solid ${color};padding:8px 14px;text-align:left;cursor:pointer;transition:all .2s">
           <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">${lbl}</div>
           <div style="font-size:18px;font-weight:800;color:var(--text);font-family:'Montserrat',sans-serif">${fBRL(fat)}</div>
           ${marg!=null?`<div style="font-size:11px;color:var(--text3);margin-top:1px">Marg. Prod.: <span style="font-weight:700;color:var(--text2)">${marg.toFixed(1)}%</span></div>`:''}
-          ${meta>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">Meta: ${fBRL(meta)}</div>`:''}
-          ${pct!=null?`<div style="margin-top:5px"><div style="height:3px;background:var(--gray);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px;transition:width .8s"></div></div><div style="font-size:11px;font-weight:700;color:${col};margin-top:2px;font-family:'Montserrat',sans-serif">${pct}% da meta</div></div>`:''}
+          ${showMeta && meta>0?`<div style="font-size:10px;color:var(--text3);margin-top:1px">Meta: ${fBRL(meta)}</div>`:''}
+          ${showMeta && pct!=null?`<div style="margin-top:5px"><div style="height:3px;background:var(--gray);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px;transition:width .8s"></div></div><div style="font-size:11px;font-weight:700;color:${col};margin-top:2px;font-family:'Montserrat',sans-serif">${pct}% da meta</div></div>`:''}
         </div>`;
       }).join('');
 
