@@ -656,9 +656,11 @@ function getSbConfig(){var e1=document.getElementById('s-sb-url'),e2=document.ge
 async function sbFetchAll(table,select,batch,extraFilter){
   select=select||'*';batch=batch||1000;
   var cfg=getSbConfig();if(!cfg.ok)throw new Error('nao configurado');
-  var all=[],start=0;
+  var all=[],start=0,total=0,iter=0;
   var baseQS='?select='+select+(extraFilter?'&'+extraFilter:'');
   while(true){
+    iter++;
+    if(iter>50){console.warn(table+': loop limit 50 reached');break;}
     var end=start+batch-1;
     var r=await fetch(cfg.url+'/rest/v1/'+table+baseQS,
       {headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,
@@ -669,10 +671,12 @@ async function sbFetchAll(table,select,batch,extraFilter){
     if(!d||!d.length)break;
     for(var i=0;i<d.length;i++)all.push(d[i]);
     var cr=r.headers.get('content-range');
-    var total=cr?parseInt((cr.split('/')[1]||'0')):0;
+    if(cr){total=parseInt((cr.split('/')[1]||'0'))||total;}
     console.log(table+': fetched '+all.length+(total?' of '+total:''));
-    if(d.length<batch||(total>0&&all.length>=total))break;
-    start+=batch;
+    // Continua paginando se: (a) total conhecido e ainda há mais, OU (b) recebeu batch cheio
+    if(total>0 && all.length>=total)break;
+    if(total===0 && d.length<batch)break;
+    start+=d.length; // avança pelo número real recebido (não pelo batch fixo)
   }
   return all;
 }
@@ -1691,7 +1695,8 @@ function _render(){
   // ── Datas MTD e v1Period — declarados aqui para uso em cntVen e vendor stats
   const now2    = new Date();
   const iniMes2 = new Date(now2.getFullYear(), now2.getMonth(), 1);
-  const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0);
+  // Último dia do mês às 23:59:59 — inclui vendas do último dia
+  const fimMes2 = new Date(now2.getFullYear(), now2.getMonth()+1, 0, 23, 59, 59, 999);
   const vendAtivos = ACTIVE === 'all' ? getGroupVendors() : [ACTIVE];
   const allChannelNomesV1 = CHANNELS.flatMap(ch => getChannelVendors(ch));
 
